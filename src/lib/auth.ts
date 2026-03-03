@@ -18,7 +18,7 @@ export interface Session {
 export const INTEREST_OPTIONS = ["tech", "crypto", "energy", "forex", "commodities"] as const;
 export const RISK_OPTIONS = ["low", "medium", "high"] as const;
 
-const N8N_BASE = "http://localhost:5678/webhook";
+const N8N_BASE = import.meta.env.VITE_N8N_BASE_URL;
 const SESSION_KEY = "investora_session";
 const HASH_SALT = "investora_2026";
 
