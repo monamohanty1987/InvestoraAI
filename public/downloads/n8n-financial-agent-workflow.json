@@ -1,0 +1,433 @@
+{
+  "name": "Financial AI Agent - ReAct Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "trigger-schedule",
+      "name": "Hourly Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://newsapi.org/v2/everything",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "q", "value": "stocks OR finance OR market OR crypto" },
+            { "name": "language", "value": "en" },
+            { "name": "sortBy", "value": "publishedAt" },
+            { "name": "pageSize", "value": "10" },
+            { "name": "apiKey", "value": "={{ $env.NEWS_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-news",
+      "name": "Fetch Financial News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.alphavantage.co/query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "function", "value": "NEWS_SENTIMENT" },
+            { "name": "tickers", "value": "AAPL,MSFT,GOOGL,AMZN,TSLA" },
+            { "name": "apikey", "value": "={{ $env.ALPHA_VANTAGE_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-alpha-vantage",
+      "name": "Alpha Vantage Sentiment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [250, 550]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://finnhub.io/api/v1/news",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "category", "value": "general" },
+            { "name": "token", "value": "={{ $env.FINNHUB_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-finnhub",
+      "name": "Finnhub Market News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [250, 800]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge and deduplicate news from all sources\nconst newsApiArticles = $('Fetch Financial News').first().json.articles || [];\nconst alphaVantageData = $('Alpha Vantage Sentiment').first().json.feed || [];\nconst finnhubNews = $('Finnhub Market News').first().json || [];\n\nconst allArticles = [];\n\n// Process News API articles\nfor (const article of newsApiArticles) {\n  allArticles.push({\n    source: 'newsapi',\n    title: article.title,\n    description: article.description || '',\n    url: article.url,\n    publishedAt: article.publishedAt,\n    content: article.content || article.description || '',\n    sentiment: null\n  });\n}\n\n// Process Alpha Vantage sentiment data\nfor (const item of alphaVantageData) {\n  allArticles.push({\n    source: 'alphavantage',\n    title: item.title,\n    description: item.summary || '',\n    url: item.url,\n    publishedAt: item.time_published,\n    content: item.summary || '',\n    sentiment: item.overall_sentiment_label,\n    sentimentScore: item.overall_sentiment_score,\n    tickers: item.ticker_sentiment || []\n  });\n}\n\n// Process Finnhub news\nfor (const item of finnhubNews) {\n  allArticles.push({\n    source: 'finnhub',\n    title: item.headline,\n    description: item.summary || '',\n    url: item.url,\n    publishedAt: new Date(item.datetime * 1000).toISOString(),\n    content: item.summary || '',\n    sentiment: null,\n    category: item.category\n  });\n}\n\nreturn allArticles.map(a => ({ json: a }));"
+      },
+      "id": "merge-news",
+      "name": "Merge All News Sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [550, 550]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/api/react-agent",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'analyze', article: $json }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "langchain-react",
+      "name": "LangChain ReAct Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 550]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{ $env.PINECONE_HOST }}/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Api-Key", "value": "={{ $env.PINECONE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vector: $json.embedding, topK: 5, includeMetadata: true, namespace: 'user-profiles' }) }}",
+        "options": {}
+      },
+      "id": "pinecone-query",
+      "name": "Pinecone RAG Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ReAct Decision: Check if article matches user profile\nconst matches = $('Pinecone RAG Query').first().json.matches || [];\nconst article = $('LangChain ReAct Agent').first().json;\n\nconst highRelevance = matches.some(m => m.score > 0.75);\nconst userProfiles = matches.filter(m => m.score > 0.75).map(m => m.metadata);\n\nconst sentiment = article.sentiment || 'neutral';\nconst sentimentScore = article.sentimentScore || 0;\n\nconst decision = {\n  isRelevant: highRelevance,\n  sentiment: sentiment,\n  sentimentScore: sentimentScore,\n  matchedProfiles: userProfiles,\n  article: article,\n  action: highRelevance ? (sentiment === 'positive' || sentimentScore > 0.2 ? 'ALERT_OPPORTUNITY' : sentiment === 'negative' || sentimentScore < -0.2 ? 'ALERT_RISK' : 'LOG_NEUTRAL') : 'DISCARD',\n  timestamp: new Date().toISOString()\n};\n\nconsole.log(`[ReAct] Decision: ${decision.action} for article: ${article.title}`);\n\nreturn [{ json: decision }];"
+      },
+      "id": "react-decision",
+      "name": "ReAct Decision Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "condition-alert",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "DISCARD",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-relevant",
+      "name": "Filter Relevant Only",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1550, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{ $env.PINECONE_HOST }}/vectors/upsert",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Api-Key", "value": "={{ $env.PINECONE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vectors: [{ id: $json.article.title.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 50) + '-' + Date.now(), values: $json.article.embedding || [], metadata: { title: $json.article.title, sentiment: $json.sentiment, score: $json.sentimentScore, action: $json.action, source: $json.article.source, timestamp: $json.timestamp } }], namespace: 'financial-news' }) }}",
+        "options": {}
+      },
+      "id": "pinecone-store",
+      "name": "Store in Pinecone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1800, 250]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.action === 'ALERT_OPPORTUNITY' ? '🟢 OPPORTUNITY ALERT' : '🔴 RISK ALERT' }}\n\n📰 {{ $json.article.title }}\n\n📊 Sentiment: {{ $json.sentiment }} ({{ $json.sentimentScore }})\n🏷️ Source: {{ $json.article.source }}\n🔗 {{ $json.article.url }}\n\n⏰ {{ $json.timestamp }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "telegram-alert",
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1800, 550],
+      "credentials": {
+        "telegramApi": {
+          "id": "CONFIGURE_ME",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": "={{ $env.NOTION_DATABASE_ID }}",
+        "title": "Financial Alert: {{ $json.article.title }}",
+        "propertiesUi": {
+          "propertyValues": [
+            { "key": "Sentiment", "type": "richText", "textContent": "={{ $json.sentiment }} ({{ $json.sentimentScore }})" },
+            { "key": "Action", "type": "select", "selectValue": "={{ $json.action }}" },
+            { "key": "Source", "type": "richText", "textContent": "={{ $json.article.source }}" },
+            { "key": "URL", "type": "url", "urlValue": "={{ $json.article.url }}" },
+            { "key": "Date", "type": "date", "date": "={{ $json.timestamp }}" }
+          ]
+        }
+      },
+      "id": "notion-save",
+      "name": "Save to Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [2050, 400],
+      "credentials": {
+        "notionApi": {
+          "id": "CONFIGURE_ME",
+          "name": "Notion API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simple logging node\nconst decision = $json;\nconsole.log(`[LOG] Article: ${decision.article?.title}`);\nconsole.log(`[LOG] Action: ${decision.action}`);\nconsole.log(`[LOG] Sentiment: ${decision.sentiment} (${decision.sentimentScore})`);\nconsole.log(`[LOG] Matched Profiles: ${decision.matchedProfiles?.length || 0}`);\nconsole.log(`[LOG] Timestamp: ${decision.timestamp}`);\n\nreturn [{ json: { ...decision, logged: true } }];"
+      },
+      "id": "logger",
+      "name": "Activity Logger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 700]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "weekly-trigger",
+      "name": "Weekly Report Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 1100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FASTAPI_URL }}/api/weekly-report",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'generate_weekly_report' }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "weekly-report-gen",
+      "name": "Generate Weekly Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 1100]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "📊 WEEKLY FINANCIAL REPORT\n━━━━━━━━━━━━━━━━━━━━━━\n\n{{ $json.report }}\n\n🗓️ Period: {{ $json.period }}\n📈 Total Alerts: {{ $json.totalAlerts }}\n🟢 Opportunities: {{ $json.opportunities }}\n🔴 Risks: {{ $json.risks }}",
+        "additionalFields": { "parse_mode": "HTML" }
+      },
+      "id": "telegram-weekly",
+      "name": "Send Weekly Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [600, 1100],
+      "credentials": {
+        "telegramApi": {
+          "id": "CONFIGURE_ME",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": "={{ $env.NOTION_REPORTS_DB_ID }}",
+        "title": "Weekly Report - {{ $json.period }}",
+        "propertiesUi": {
+          "propertyValues": [
+            { "key": "Report", "type": "richText", "textContent": "={{ $json.report }}" },
+            { "key": "Total Alerts", "type": "number", "numberValue": "={{ $json.totalAlerts }}" },
+            { "key": "Opportunities", "type": "number", "numberValue": "={{ $json.opportunities }}" },
+            { "key": "Risks", "type": "number", "numberValue": "={{ $json.risks }}" }
+          ]
+        }
+      },
+      "id": "notion-weekly",
+      "name": "Save Weekly Report to Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [600, 1350],
+      "credentials": {
+        "notionApi": {
+          "id": "CONFIGURE_ME",
+          "name": "Notion API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error handler - catch and log errors\ntry {\n  const errorData = $json;\n  const errorLog = {\n    error: true,\n    message: errorData.message || 'Unknown error',\n    node: errorData.node || 'Unknown',\n    timestamp: new Date().toISOString(),\n    stack: errorData.stack || ''\n  };\n  console.error(`[ERROR] Node: ${errorLog.node}, Message: ${errorLog.message}`);\n  return [{ json: errorLog }];\n} catch(e) {\n  return [{ json: { error: true, message: e.message, timestamp: new Date().toISOString() } }];\n}"
+      },
+      "id": "error-handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 900]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "⚠️ WORKFLOW ERROR\n\nNode: {{ $json.node }}\nError: {{ $json.message }}\nTime: {{ $json.timestamp }}",
+        "additionalFields": {}
+      },
+      "id": "telegram-error",
+      "name": "Error Alert via Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1550, 900],
+      "credentials": {
+        "telegramApi": {
+          "id": "CONFIGURE_ME",
+          "name": "Telegram Bot API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Hourly Trigger": {
+      "main": [
+        [
+          { "node": "Fetch Financial News", "type": "main", "index": 0 },
+          { "node": "Alpha Vantage Sentiment", "type": "main", "index": 0 },
+          { "node": "Finnhub Market News", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Financial News": {
+      "main": [
+        [{ "node": "Merge All News Sources", "type": "main", "index": 0 }]
+      ]
+    },
+    "Alpha Vantage Sentiment": {
+      "main": [
+        [{ "node": "Merge All News Sources", "type": "main", "index": 0 }]
+      ]
+    },
+    "Finnhub Market News": {
+      "main": [
+        [{ "node": "Merge All News Sources", "type": "main", "index": 0 }]
+      ]
+    },
+    "Merge All News Sources": {
+      "main": [
+        [{ "node": "LangChain ReAct Agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "LangChain ReAct Agent": {
+      "main": [
+        [{ "node": "Pinecone RAG Query", "type": "main", "index": 0 }]
+      ]
+    },
+    "Pinecone RAG Query": {
+      "main": [
+        [{ "node": "ReAct Decision Engine", "type": "main", "index": 0 }]
+      ]
+    },
+    "ReAct Decision Engine": {
+      "main": [
+        [
+          { "node": "Filter Relevant Only", "type": "main", "index": 0 },
+          { "node": "Activity Logger", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Filter Relevant Only": {
+      "main": [
+        [
+          { "node": "Store in Pinecone", "type": "main", "index": 0 },
+          { "node": "Send Telegram Alert", "type": "main", "index": 0 },
+          { "node": "Save to Notion", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Weekly Report Trigger": {
+      "main": [
+        [{ "node": "Generate Weekly Report", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate Weekly Report": {
+      "main": [
+        [
+          { "node": "Send Weekly Report", "type": "main", "index": 0 },
+          { "node": "Save Weekly Report to Notion", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler"
+  },
+  "tags": [
+    { "name": "financial-agent" },
+    { "name": "react-pattern" },
+    { "name": "rag" }
+  ],
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "configure-your-instance"
+  }
+}
