@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: investoraai-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_INDEX_NAME
+        sync: false
+      - key: PINECONE_HOST
+        sync: false
+      - key: API_SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: MAX_TOKENS
+        value: "1000"
+      - key: OPENAI_TIMEOUT
+        value: "30"
+      - key: ENVIRONMENT
+        value: production

@@ -195,6 +195,17 @@ const Register = () => {
             <Button type="submit" className="w-full font-mono" disabled={loading}>
               {loading ? "Creating account..." : "Create Account"}
             </Button>
+
+            {/* Terms agreement notice */}
+            <p className="text-xs font-mono text-muted-foreground/70 text-center leading-5">
+              By creating an account you agree to our{" "}
+              <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>
+              {" "}and{" "}
+              <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+              <br />
+              <Link to="/disclaimer" className="text-primary hover:underline">Financial Disclaimer</Link>
+              {" "}— AI analysis is not financial advice.
+            </p>
           </form>
 
           <p className="text-center text-sm font-mono text-muted-foreground">

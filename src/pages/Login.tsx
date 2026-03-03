@@ -95,6 +95,13 @@ const Login = () => {
             </Link>
           </p>
         </div>
+
+        {/* Legal links */}
+        <div className="flex justify-center gap-4 mt-6 text-xs font-mono text-muted-foreground/60">
+          <Link to="/terms" className="hover:text-primary transition-colors">Terms</Link>
+          <Link to="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+          <Link to="/disclaimer" className="hover:text-primary transition-colors">Disclaimer</Link>
+        </div>
       </div>
     </div>
   );

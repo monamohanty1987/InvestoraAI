@@ -7,3 +7,17 @@ pinecone>=5.0.1
 pydantic>=2.10.0
 python-dotenv>=1.0.1
 openai>=1.54.4
+
+# Security
+slowapi>=0.1.9
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Caching
+redis>=5.0.0
+
+# Monitoring & Logging
+sentry-sdk[fastapi]>=2.0.0
+
+# HTTP client with timeouts
+httpx>=0.27.0

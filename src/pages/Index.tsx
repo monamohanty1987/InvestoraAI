@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Download, Activity, Newspaper, Bell, Radio, LogOut } from "lucide-react";
 import { NewsFeed } from "@/components/dashboard/NewsFeed";
@@ -153,6 +153,20 @@ const Index = () => {
           {activeTab === "downloads" && <DownloadSection />}
         </motion.div>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border/50 mt-10 pb-20">
+        <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs font-mono text-muted-foreground">
+            © {new Date().getFullYear()} InvestoraAI — For informational purposes only. Not financial advice.
+          </p>
+          <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
+            <Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
+            <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+            <Link to="/disclaimer" className="hover:text-primary transition-colors">Financial Disclaimer</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
