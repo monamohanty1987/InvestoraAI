@@ -8,12 +8,16 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .run_weekly import run_analysis, run_weekly
+
+# Load .env from langgraph/ root — no-op on Render (env vars already injected)
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 def _verify_cron_secret(authorization: str = Header(default="")) -> None:
@@ -26,8 +30,13 @@ def _verify_cron_secret(authorization: str = Header(default="")) -> None:
 
 app = FastAPI(title="LangGraph Weekly Market Agent", version="1.0.0")
 
+# CORS — allow localhost in dev + production origins from CORS_ORIGINS env var
+_raw_origins = os.environ.get("CORS_ORIGINS", "")
+_explicit_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=_explicit_origins,
     allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
