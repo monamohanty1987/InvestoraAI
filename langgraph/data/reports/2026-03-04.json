@@ -249,7 +249,7 @@
   "insights": [
     {
       "company": "NVDA",
-      "text": "NVIDIA data-centre revenue surges as AI chip demand remains insatiable \u2014 NVIDIA demonstrates strong fundamentals with a return on equity of 55%, an operating margin of 55%, and a low debt-to-equity ratio of 0.4. The company has shown remarkable revenue growth of 122% and earnings per share growth of 130%, indicating robust financial health and operational efficiency.",
+      "text": "NVIDIA data-centre revenue surges as AI chip demand remains insatiable \u2014 NVIDIA demonstrates strong fundamentals with a return on equity of 55%, an operating margin of 55%, and a low debt-to-equity ratio of 0.4. The company has shown remarkable revenue growth of 122% and earnings per share growth of 130%, indicating robust financial health.",
       "evidence": [
         {
           "title": "Is It Too Late To Consider NVIDIA (NVDA) After Recent Share Price Pullback?",
@@ -330,7 +330,7 @@
     },
     {
       "company": "GOOGL",
-      "text": "Alphabet ad revenue rebounds as AI search integrations gain traction \u2014 Alphabet (GOOGL) demonstrates strong fundamentals with a return on equity of 22%, an operating margin of 25%, and a low debt-to-equity ratio of 0.1. The company has shown revenue growth of 14% and EPS growth of 18%, indicating solid financial health and operational efficiency.",
+      "text": "Alphabet ad revenue rebounds as AI search integrations gain traction \u2014 Alphabet (GOOGL) demonstrates strong fundamentals with a return on equity of 22%, an operating margin of 25%, and a low debt-to-equity ratio of 0.1. The company has shown solid revenue growth of 14% and earnings per share growth of 18%, indicating robust financial health.",
       "evidence": [
         {
           "title": "Is Alphabet (GOOGL) Still Attractively Priced After AI Headlines And Recent Share Pullback",
@@ -357,7 +357,7 @@
     },
     {
       "company": "AAPL",
-      "text": "Apple services revenue hits record as iPhone growth slows \u2014 Apple demonstrates strong fundamentals with a high return on equity (45%) and solid operating margins (30%). Revenue growth is steady at 6%, and earnings per share growth is at 10%. However, the debt-to-equity ratio of 1.5 indicates a moderate level of financial leverage.",
+      "text": "Apple services revenue hits record as iPhone growth slows \u2014 Apple demonstrates strong fundamentals with a high return on equity (ROE) of 45% and an operating margin of 30%. Revenue growth is steady at 6%, and earnings per share (EPS) growth is at 10%. However, the debt-to-equity ratio of 1.5 indicates a moderate level of financial leverage.",
       "evidence": [
         {
           "title": "Wedbush maintains $350 Apple target as product blitz reinforces AI hardware push",
