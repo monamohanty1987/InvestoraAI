@@ -15,6 +15,7 @@ from .mcp_tools import (
     get_fundamentals_tool,
     get_market_tool,
     get_news_tool,
+    get_rag_tool,
 )
 from .n8n_client import post_candidates_to_n8n, post_report_to_n8n
 from .reporting import DEFAULT_COMPANIES, build_markdown, build_report, persist_report
@@ -79,6 +80,8 @@ def init_state(state: GraphState) -> GraphState:
         "failed_tickers": [],
         "per_ticker_data": per_ticker_data,
         "scores": {},
+        "per_ticker_rag_context": {},
+        "rag_stats": {"retrieved_items": 0, "queries_run": 0},
         "per_ticker_synthesis": {},
         "signal_events": [],
         "report_json": None,
@@ -368,6 +371,7 @@ def _build_evidence_bundle(
     ticker: str,
     per_ticker_data: Dict[str, Dict[str, Any]],
     scores: Dict[str, Dict[str, float]],
+    rag_context: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     data = per_ticker_data.get(ticker, {})
     prices = data.get("market", {}).get("prices", [])
@@ -401,8 +405,55 @@ def _build_evidence_bundle(
             "eps_growth_pct": _pct("eps_growth"),
         },
         "headlines": [a.get("headline", "") for a in articles[:5] if a.get("headline")],
+        "rag_context": rag_context or [],
         "scores": scores.get(ticker, {}),
     }
+
+
+def retrieve_rag_context_node(state: GraphState) -> GraphState:
+    if state.get("skip_synthesis"):
+        state["per_ticker_rag_context"] = {}
+        state["rag_stats"] = {"retrieved_items": 0, "queries_run": 0}
+        return state
+
+    tool = get_rag_tool()
+    context_map: Dict[str, List[Dict[str, Any]]] = {}
+    retrieved_items = 0
+    queries_run = 0
+
+    lookback_days = int(os.environ.get("RAG_LOOKBACK_DAYS", "42"))
+    top_k = int(os.environ.get("RAG_TOP_K", "5"))
+
+    for ticker in state["scores"]:
+        try:
+            queries_run += 1
+            query = (
+                f"{ticker} catalysts, trend confirmation, risk factors and "
+                "fundamental context for this week's investment analysis"
+            )
+            rag = tool.run(
+                {
+                    "ticker": ticker,
+                    "query": query,
+                    "lookback_days": lookback_days,
+                    "top_k": top_k,
+                    "end_date": state["run_date"],
+                }
+            )
+            matches = list(rag.get("matches") or [])
+            context_map[ticker] = matches
+            retrieved_items += len(matches)
+        except Exception as exc:  # noqa: BLE001
+            context_map[ticker] = []
+            state["errors"].append({"ticker": ticker, "tool": "rag_retrieval", "error": str(exc)})
+
+    state["per_ticker_rag_context"] = context_map
+    state["rag_stats"] = {"retrieved_items": retrieved_items, "queries_run": queries_run}
+    logger.info(
+        "retrieve_rag_context_node",
+        extra={"run_id": state["run_id"], "retrieved_items": retrieved_items, "queries_run": queries_run},
+    )
+    return state
 
 
 def synthesize_evidence_node(state: GraphState) -> GraphState:
@@ -425,7 +476,12 @@ def synthesize_evidence_node(state: GraphState) -> GraphState:
 
     for ticker in state["scores"]:
         try:
-            bundle = _build_evidence_bundle(ticker, state["per_ticker_data"], state["scores"])
+            bundle = _build_evidence_bundle(
+                ticker,
+                state["per_ticker_data"],
+                state["scores"],
+                rag_context=state.get("per_ticker_rag_context", {}).get(ticker, []),
+            )
             response = client.responses.create(
                 model=model,
                 input=[
@@ -437,6 +493,8 @@ def synthesize_evidence_node(state: GraphState) -> GraphState:
                             "quality_narrative (str), momentum_narrative (str), "
                             "news_catalyst ({present: bool, headline: str|null, impact: str, strength: str}), "
                             "risk_factors (list of str). "
+                            "Use rag_context when present and prefer evidence-backed statements. "
+                            "If rag_context is empty or weak, avoid overconfident claims. "
                             "Be factual and concise. Never make buy/sell recommendations."
                         ),
                     },
@@ -566,6 +624,8 @@ def assemble_report_json_node(state: GraphState) -> GraphState:
         report_dir="data/reports",
         errors=state["errors"],
         synthesis=state["per_ticker_synthesis"],
+        rag_context=state.get("per_ticker_rag_context"),
+        rag_stats=state.get("rag_stats"),
     )
     return state
 
@@ -613,6 +673,7 @@ def build_graph():
     graph.add_node("plan_next_action", plan_next_action)
     graph.add_node("execute_tool_action", execute_tool_action)
     graph.add_node("compute_scores", compute_scores_node)
+    graph.add_node("retrieve_rag_context", retrieve_rag_context_node)
     graph.add_node("synthesize_evidence", synthesize_evidence_node)
     graph.add_node("emit_signals", emit_signals_node)
     graph.add_node("post_alerts", post_alerts_node)
@@ -637,7 +698,8 @@ def build_graph():
 
     graph.add_edge("execute_tool_action", "plan_next_action")
 
-    graph.add_edge("compute_scores", "synthesize_evidence")
+    graph.add_edge("compute_scores", "retrieve_rag_context")
+    graph.add_edge("retrieve_rag_context", "synthesize_evidence")
     graph.add_edge("synthesize_evidence", "emit_signals")
     graph.add_edge("emit_signals", "post_alerts")
     graph.add_edge("post_alerts", "post_candidates")
