@@ -1,0 +1,137 @@
+{
+  "name": "Investora AI — Weekly Candidates Email",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Receive Candidates Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "path": "investora-candidates",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "investora-candidates"
+    },
+    {
+      "id": "2",
+      "name": "Split Candidates Into Items",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "parameters": {
+        "fieldToSplitOut": "body.candidates",
+        "options": {
+          "destinationFieldName": "candidate"
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Format HTML Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const c = $input.item.json.candidate;\nconst directionArrow = { up: '↑', down: '↓', neutral: '→' }[c.direction] || '→';\nconst scoreBar = '█'.repeat(Math.round(c.score)) + '░'.repeat(10 - Math.round(c.score));\nconst narrative = c.narrative ? `<br/><span style=\"color:#666;font-size:12px\">${c.narrative}</span>` : '';\n\nconst row = `<tr>\n  <td style=\"padding:8px 12px;font-weight:bold\">${c.ticker}</td>\n  <td style=\"padding:8px 12px;color:#4CAF50\">${directionArrow} ${c.direction.toUpperCase()}</td>\n  <td style=\"padding:8px 12px;font-family:monospace\">${c.score.toFixed(1)}/10 ${scoreBar}</td>\n  <td style=\"padding:8px 12px;color:#888\">${c.severity.toUpperCase()}</td>\n  <td style=\"padding:8px 12px\">${c.signal_type}${narrative}</td>\n</tr>`;\n\nreturn [{ json: { row, ticker: c.ticker, score: c.score } }];"
+      }
+    },
+    {
+      "id": "4",
+      "name": "Aggregate All Rows",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      }
+    },
+    {
+      "id": "5",
+      "name": "Build Email HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300],
+      "parameters": {
+        "jsCode": "const items = $input.item.json.data;\nconst runDate = $('Receive Candidates Webhook').item.json.body.run_date || '';\nconst count = $('Receive Candidates Webhook').item.json.body.candidate_count || items.length;\n\nconst rows = items.map(i => i.row).join('\\n');\n\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"UTF-8\"></head>\n<body style=\"font-family:Arial,sans-serif;max-width:700px;margin:auto;padding:20px;background:#0d1117;color:#e6edf3\">\n  <h2 style=\"color:#58a6ff;border-bottom:1px solid #30363d;padding-bottom:12px\">\n    📈 Investora AI — Weekly Top Candidates\n  </h2>\n  <p style=\"color:#8b949e\">Run date: <strong style=\"color:#e6edf3\">${runDate}</strong> &nbsp;|&nbsp; ${count} candidate${count !== 1 ? 's' : ''} identified</p>\n  <table style=\"width:100%;border-collapse:collapse;background:#161b22;border-radius:8px;overflow:hidden\">\n    <thead>\n      <tr style=\"background:#21262d\">\n        <th style=\"padding:10px 12px;text-align:left;color:#58a6ff\">Ticker</th>\n        <th style=\"padding:10px 12px;text-align:left;color:#58a6ff\">Direction</th>\n        <th style=\"padding:10px 12px;text-align:left;color:#58a6ff\">Score</th>\n        <th style=\"padding:10px 12px;text-align:left;color:#58a6ff\">Severity</th>\n        <th style=\"padding:10px 12px;text-align:left;color:#58a6ff\">Signal / Narrative</th>\n      </tr>\n    </thead>\n    <tbody>\n      ${rows}\n    </tbody>\n  </table>\n  <p style=\"margin-top:24px;font-size:11px;color:#8b949e\">\n    This report is for informational purposes only and does not constitute financial advice.\n    Past performance is not indicative of future results.\n  </p>\n</body>\n</html>`;\n\nreturn [{ json: { subject: `Investora AI — Weekly Candidates (${runDate})`, html } }];"
+      }
+    },
+    {
+      "id": "6",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1340, 300],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $vars.SUBSCRIBER_EMAIL }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "1",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "id": "7",
+      "name": "Respond 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1560, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ received: true, candidate_count: $('Receive Candidates Webhook').item.json.body.candidate_count }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive Candidates Webhook": {
+      "main": [
+        [{ "node": "Split Candidates Into Items", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split Candidates Into Items": {
+      "main": [
+        [{ "node": "Format HTML Row", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format HTML Row": {
+      "main": [
+        [{ "node": "Aggregate All Rows", "type": "main", "index": 0 }]
+      ]
+    },
+    "Aggregate All Rows": {
+      "main": [
+        [{ "node": "Build Email HTML", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Email HTML": {
+      "main": [
+        [{ "node": "Send Email", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [{ "node": "Respond 200 OK", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "description": "Receives WEEKLY_CANDIDATE signals from Investora AI (quality score 7.0–8.4) and sends a formatted HTML email summary. Set SUBSCRIBER_EMAIL in n8n Variables and configure a Gmail OAuth2 credential before activating."
+  }
+}

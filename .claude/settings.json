@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lsof -i:8000 -i:8080)",
+      "Bash(curl -s http://localhost:8000/run-history?limit=1)",
+      "Bash(curl -s -X POST http://localhost:8000/run-weekly -H \"Content-Type: application/json\" -d '{\"\"no_post\"\": true}' --max-time 300)",
+      "Bash(python3 -m json.tool)"
+    ],
+    "additionalDirectories": [
+      "/Users/elsa/Documents/Dropbox/Work Projects:Trainings/AI Consulting Training/Investora-AI"
+    ]
+  }
+}

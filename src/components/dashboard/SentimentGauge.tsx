@@ -1,7 +1,11 @@
 import { motion } from "framer-motion";
 
-export function SentimentGauge() {
-  const score = 0.32;
+interface SentimentGaugeProps {
+  score?: number; // -1 to +1 scale; falls back to 0.32 when absent
+}
+
+export function SentimentGauge({ score: scoreProp }: SentimentGaugeProps) {
+  const score = scoreProp ?? 0.32;
   const angle = score * 90; // -90 to 90 degrees mapped from -1 to 1
   
   return (

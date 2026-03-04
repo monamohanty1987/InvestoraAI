@@ -1,0 +1,293 @@
+{
+  "report": {
+    "title": "Weekly Investment Report",
+    "run_date": "2026-03-03",
+    "performance": {
+      "weekly_change_percent": 0.0,
+      "since_date": "2026-02-24",
+      "trend": "flat"
+    }
+  },
+  "top_opportunities": [
+    {
+      "rank": 1,
+      "company": {
+        "name": "NVIDIA",
+        "ticker": "NVDA",
+        "icon": ""
+      },
+      "score": 10.0,
+      "prior_score": null,
+      "quality": {
+        "rating": "Strong",
+        "score": 10.0
+      },
+      "momentum": {
+        "rating": "Strong",
+        "score": 10.0
+      },
+      "weekly_change": {
+        "value": null,
+        "direction": "flat"
+      }
+    },
+    {
+      "rank": 2,
+      "company": {
+        "name": "Meta",
+        "ticker": "META",
+        "icon": ""
+      },
+      "score": 7.6,
+      "prior_score": null,
+      "quality": {
+        "rating": "Good",
+        "score": 8.7
+      },
+      "momentum": {
+        "rating": "Negative",
+        "score": 6.2
+      },
+      "weekly_change": {
+        "value": null,
+        "direction": "flat"
+      }
+    },
+    {
+      "rank": 3,
+      "company": {
+        "name": "Microsoft",
+        "ticker": "MSFT",
+        "icon": ""
+      },
+      "score": 7.4,
+      "prior_score": null,
+      "quality": {
+        "rating": "Solid",
+        "score": 7.3
+      },
+      "momentum": {
+        "rating": "Neutral",
+        "score": 7.6
+      },
+      "weekly_change": {
+        "value": null,
+        "direction": "flat"
+      }
+    },
+    {
+      "rank": 4,
+      "company": {
+        "name": "Alphabet",
+        "ticker": "GOOGL",
+        "icon": ""
+      },
+      "score": 6.2,
+      "prior_score": null,
+      "quality": {
+        "rating": "Weak",
+        "score": 5.7
+      },
+      "momentum": {
+        "rating": "Negative",
+        "score": 6.9
+      },
+      "weekly_change": {
+        "value": null,
+        "direction": "flat"
+      }
+    },
+    {
+      "rank": 5,
+      "company": {
+        "name": "Apple",
+        "ticker": "AAPL",
+        "icon": ""
+      },
+      "score": 4.3,
+      "prior_score": null,
+      "quality": {
+        "rating": "Weak",
+        "score": 3.3
+      },
+      "momentum": {
+        "rating": "Negative",
+        "score": 5.5
+      },
+      "weekly_change": {
+        "value": null,
+        "direction": "flat"
+      }
+    }
+  ],
+  "strategy_breakdown": {
+    "quality": [
+      {
+        "company": "NVDA",
+        "score": 10.0,
+        "rating": "Strong",
+        "bar_percentage": 100
+      },
+      {
+        "company": "META",
+        "score": 8.7,
+        "rating": "Good",
+        "bar_percentage": 87
+      },
+      {
+        "company": "MSFT",
+        "score": 7.3,
+        "rating": "Solid",
+        "bar_percentage": 73
+      },
+      {
+        "company": "GOOGL",
+        "score": 5.7,
+        "rating": "Weak",
+        "bar_percentage": 57
+      },
+      {
+        "company": "AAPL",
+        "score": 3.3,
+        "rating": "Weak",
+        "bar_percentage": 33
+      },
+      {
+        "company": "V",
+        "score": 4.2,
+        "rating": "Weak",
+        "bar_percentage": 42
+      },
+      {
+        "company": "MA",
+        "score": 3.8,
+        "rating": "Weak",
+        "bar_percentage": 38
+      },
+      {
+        "company": "AMZN",
+        "score": 0.9,
+        "rating": "Weak",
+        "bar_percentage": 9
+      },
+      {
+        "company": "JPM",
+        "score": 2.4,
+        "rating": "Weak",
+        "bar_percentage": 24
+      },
+      {
+        "company": "TSLA",
+        "score": 0.0,
+        "rating": "Weak",
+        "bar_percentage": 0
+      }
+    ],
+    "momentum": [
+      {
+        "company": "NVDA",
+        "score": 10.0,
+        "rating": "Strong",
+        "bar_percentage": 100
+      },
+      {
+        "company": "META",
+        "score": 6.2,
+        "rating": "Negative",
+        "bar_percentage": 62
+      },
+      {
+        "company": "MSFT",
+        "score": 7.6,
+        "rating": "Neutral",
+        "bar_percentage": 76
+      },
+      {
+        "company": "GOOGL",
+        "score": 6.9,
+        "rating": "Negative",
+        "bar_percentage": 69
+      },
+      {
+        "company": "AAPL",
+        "score": 5.5,
+        "rating": "Negative",
+        "bar_percentage": 55
+      },
+      {
+        "company": "V",
+        "score": 4.5,
+        "rating": "Negative",
+        "bar_percentage": 45
+      },
+      {
+        "company": "MA",
+        "score": 3.2,
+        "rating": "Negative",
+        "bar_percentage": 32
+      },
+      {
+        "company": "AMZN",
+        "score": 4.3,
+        "rating": "Negative",
+        "bar_percentage": 43
+      },
+      {
+        "company": "JPM",
+        "score": 2.5,
+        "rating": "Negative",
+        "bar_percentage": 25
+      },
+      {
+        "company": "TSLA",
+        "score": 0.0,
+        "rating": "Negative",
+        "bar_percentage": 0
+      }
+    ]
+  },
+  "insights": [
+    {
+      "company": "NVDA",
+      "text": "NVIDIA data-centre revenue surges as AI chip demand remains insatiable | NVIDIA H200 supply constrained through 2026 amid hyperscaler orders"
+    },
+    {
+      "company": "META",
+      "text": "Meta Llama 4 adoption accelerates enterprise AI deployments | Meta advertising revenue up 22% driven by Reels and AI targeting"
+    },
+    {
+      "company": "MSFT",
+      "text": "Microsoft Copilot drives Azure growth to 33% year-over-year | Microsoft beats Q4 estimates on AI and enterprise demand"
+    },
+    {
+      "company": "GOOGL",
+      "text": "Alphabet ad revenue rebounds as AI search integrations gain traction | Google DeepMind releases new reasoning model challenging OpenAI"
+    },
+    {
+      "company": "AAPL",
+      "text": "Apple services revenue hits record as iPhone growth slows | Apple Vision Pro production cut as demand disappoints analysts"
+    }
+  ],
+  "data_sources": [
+    {
+      "name": "Market Data API",
+      "type": "market"
+    },
+    {
+      "name": "Fundamental Data API",
+      "type": "fundamental"
+    },
+    {
+      "name": "News/Search API",
+      "type": "news"
+    }
+  ],
+  "system_metadata": {
+    "vector_index": {
+      "provider": "Pinecone",
+      "stored_memos": 0,
+      "lookback_weeks": 6
+    }
+  },
+  "tool_errors": []
+}

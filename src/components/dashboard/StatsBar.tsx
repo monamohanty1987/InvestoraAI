@@ -1,16 +1,48 @@
 import { TrendingUp, TrendingDown, Newspaper, Bell, Activity, BarChart3 } from "lucide-react";
 import { motion } from "framer-motion";
 
-const stats = [
-  { label: "Articles Processed", value: "1,284", change: "+12%", positive: true, icon: Newspaper },
-  { label: "Alerts Sent", value: "47", change: "+5", positive: true, icon: Bell },
-  { label: "Opportunities", value: "23", change: "+3", positive: true, icon: TrendingUp },
-  { label: "Risk Alerts", value: "18", change: "-2", positive: false, icon: TrendingDown },
-  { label: "Avg Sentiment", value: "0.32", change: "+0.05", positive: true, icon: BarChart3 },
-  { label: "Uptime", value: "99.8%", change: "stable", positive: true, icon: Activity },
-];
+interface StatsBarProps {
+  weeklyChangePct?: number;
+  opportunityCount?: number;
+  errorCount?: number;
+  runTimestamp?: string;
+}
 
-export function StatsBar() {
+export function StatsBar({ weeklyChangePct, opportunityCount, errorCount, runTimestamp }: StatsBarProps) {
+  const lastRunLabel = runTimestamp
+    ? new Date(runTimestamp).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "never";
+
+  const stats = [
+    { label: "Articles Processed", value: "1,284", change: "+12%", positive: true, icon: Newspaper },
+    { label: "Alerts Sent", value: "47", change: "+5", positive: true, icon: Bell },
+    {
+      label: "Opportunities",
+      value: opportunityCount !== undefined ? String(opportunityCount) : "23",
+      change: "+3",
+      positive: true,
+      icon: TrendingUp,
+    },
+    {
+      label: "Run Errors",
+      value: errorCount !== undefined ? String(errorCount) : "—",
+      change: errorCount === 0 ? "all clear" : errorCount !== undefined ? "last run" : "—",
+      positive: errorCount === 0 || errorCount === undefined,
+      icon: TrendingDown,
+    },
+    {
+      label: "Weekly Change",
+      value:
+        weeklyChangePct !== undefined
+          ? `${weeklyChangePct >= 0 ? "+" : ""}${weeklyChangePct.toFixed(1)}%`
+          : "0.32",
+      change: weeklyChangePct !== undefined ? "from report" : "+0.05",
+      positive: weeklyChangePct !== undefined ? weeklyChangePct >= 0 : true,
+      icon: BarChart3,
+    },
+    { label: "Last Run", value: lastRunLabel, change: "timestamp", positive: true, icon: Activity },
+  ];
+
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       {stats.map((stat, i) => (

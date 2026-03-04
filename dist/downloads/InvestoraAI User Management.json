@@ -1,0 +1,214 @@
+{
+  "name": "InvestoraAI User Management",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "investora/register",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Register Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        240
+      ],
+      "webhookId": "investora-register-v1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n webhook body may be at $json.body or directly at $json\nconst b = $json.body || $json;\nconst data = $getWorkflowStaticData('global');\nif (!data.users) data.users = {};\n\nconst key = (b.username || '').toLowerCase().trim();\nif (!key) {\n  return [{ json: { ok: false, error: 'Username required' } }];\n}\n\nif (data.users[key]) {\n  return [{ json: { ok: false, error: 'Username already taken' } }];\n}\n\ndata.users[key] = {\n  passwordHash: b.passwordHash,\n  userId: b.userId,\n  profile: b.profile || {},\n  createdAt: new Date().toISOString()\n};\n\nreturn [{ json: { ok: true, userId: b.userId } }];"
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000002",
+      "name": "Register Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000003",
+      "name": "Register Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        688,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "investora/login",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000004",
+      "name": "Login Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        464
+      ],
+      "webhookId": "investora-login-v1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $json.body || $json;\nconst data = $getWorkflowStaticData('global');\nconst key = (b.username || '').toLowerCase().trim();\nconst user = data.users?.[key];\n\nif (!user || user.passwordHash !== b.passwordHash) {\n  return [{ json: { ok: false, error: 'Invalid credentials' } }];\n}\n\nreturn [{ json: { ok: true, userId: user.userId, profile: user.profile } }];"
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000005",
+      "name": "Login Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000006",
+      "name": "Login Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        688,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "investora/profile",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000007",
+      "name": "Profile Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        688
+      ],
+      "webhookId": "investora-profile-v1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $json.body || $json;\nconst data = $getWorkflowStaticData('global');\nconst key = (b.username || '').toLowerCase().trim();\n\nif (!data.users?.[key]) {\n  return [{ json: { ok: false, error: 'User not found' } }];\n}\n\ndata.users[key].profile = b.profile;\n\nreturn [{ json: { ok: true } }];"
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000008",
+      "name": "Profile Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000009",
+      "name": "Profile Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        688,
+        688
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Register Webhook": {
+      "main": [
+        [
+          {
+            "node": "Register Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Code": {
+      "main": [
+        [
+          {
+            "node": "Register Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login Webhook": {
+      "main": [
+        [
+          {
+            "node": "Login Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login Code": {
+      "main": [
+        [
+          {
+            "node": "Login Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Profile Webhook": {
+      "main": [
+        [
+          {
+            "node": "Profile Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Profile Code": {
+      "main": [
+        [
+          {
+            "node": "Profile Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "88528598-4886-486e-8fce-16f27fa93f01",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aa73719b26c62e350f285e3bc7429645adfd218851873ad4793c11f20d7a9189"
+  },
+  "id": "investora-user-mgmt",
+  "tags": []
+}

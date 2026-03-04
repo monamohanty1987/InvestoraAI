@@ -1,0 +1,293 @@
+{
+  "report": {
+    "title": "Weekly Investment Report",
+    "run_date": "2026-03-04",
+    "performance": {
+      "weekly_change_percent": 0.0,
+      "since_date": "2026-02-25",
+      "trend": "flat"
+    }
+  },
+  "top_opportunities": [
+    {
+      "rank": 1,
+      "company": {
+        "name": "NVIDIA",
+        "ticker": "NVDA",
+        "icon": ""
+      },
+      "score": 10.0,
+      "prior_score": 10.0,
+      "quality": {
+        "rating": "Strong",
+        "score": 10.0
+      },
+      "momentum": {
+        "rating": "Strong",
+        "score": 10.0
+      },
+      "weekly_change": {
+        "value": 0.0,
+        "direction": "flat"
+      }
+    },
+    {
+      "rank": 2,
+      "company": {
+        "name": "Meta",
+        "ticker": "META",
+        "icon": ""
+      },
+      "score": 7.6,
+      "prior_score": 7.6,
+      "quality": {
+        "rating": "Good",
+        "score": 8.7
+      },
+      "momentum": {
+        "rating": "Negative",
+        "score": 6.2
+      },
+      "weekly_change": {
+        "value": 0.0,
+        "direction": "flat"
+      }
+    },
+    {
+      "rank": 3,
+      "company": {
+        "name": "Microsoft",
+        "ticker": "MSFT",
+        "icon": ""
+      },
+      "score": 7.4,
+      "prior_score": 7.4,
+      "quality": {
+        "rating": "Solid",
+        "score": 7.3
+      },
+      "momentum": {
+        "rating": "Neutral",
+        "score": 7.6
+      },
+      "weekly_change": {
+        "value": 0.0,
+        "direction": "flat"
+      }
+    },
+    {
+      "rank": 4,
+      "company": {
+        "name": "Alphabet",
+        "ticker": "GOOGL",
+        "icon": ""
+      },
+      "score": 6.2,
+      "prior_score": 6.2,
+      "quality": {
+        "rating": "Weak",
+        "score": 5.7
+      },
+      "momentum": {
+        "rating": "Negative",
+        "score": 6.9
+      },
+      "weekly_change": {
+        "value": 0.0,
+        "direction": "flat"
+      }
+    },
+    {
+      "rank": 5,
+      "company": {
+        "name": "Apple",
+        "ticker": "AAPL",
+        "icon": ""
+      },
+      "score": 4.3,
+      "prior_score": 4.3,
+      "quality": {
+        "rating": "Weak",
+        "score": 3.3
+      },
+      "momentum": {
+        "rating": "Negative",
+        "score": 5.5
+      },
+      "weekly_change": {
+        "value": 0.0,
+        "direction": "flat"
+      }
+    }
+  ],
+  "strategy_breakdown": {
+    "quality": [
+      {
+        "company": "NVDA",
+        "score": 10.0,
+        "rating": "Strong",
+        "bar_percentage": 100
+      },
+      {
+        "company": "META",
+        "score": 8.7,
+        "rating": "Good",
+        "bar_percentage": 87
+      },
+      {
+        "company": "MSFT",
+        "score": 7.3,
+        "rating": "Solid",
+        "bar_percentage": 73
+      },
+      {
+        "company": "GOOGL",
+        "score": 5.7,
+        "rating": "Weak",
+        "bar_percentage": 57
+      },
+      {
+        "company": "AAPL",
+        "score": 3.3,
+        "rating": "Weak",
+        "bar_percentage": 33
+      },
+      {
+        "company": "V",
+        "score": 4.2,
+        "rating": "Weak",
+        "bar_percentage": 42
+      },
+      {
+        "company": "MA",
+        "score": 3.8,
+        "rating": "Weak",
+        "bar_percentage": 38
+      },
+      {
+        "company": "AMZN",
+        "score": 0.9,
+        "rating": "Weak",
+        "bar_percentage": 9
+      },
+      {
+        "company": "JPM",
+        "score": 2.4,
+        "rating": "Weak",
+        "bar_percentage": 24
+      },
+      {
+        "company": "TSLA",
+        "score": 0.0,
+        "rating": "Weak",
+        "bar_percentage": 0
+      }
+    ],
+    "momentum": [
+      {
+        "company": "NVDA",
+        "score": 10.0,
+        "rating": "Strong",
+        "bar_percentage": 100
+      },
+      {
+        "company": "META",
+        "score": 6.2,
+        "rating": "Negative",
+        "bar_percentage": 62
+      },
+      {
+        "company": "MSFT",
+        "score": 7.6,
+        "rating": "Neutral",
+        "bar_percentage": 76
+      },
+      {
+        "company": "GOOGL",
+        "score": 6.9,
+        "rating": "Negative",
+        "bar_percentage": 69
+      },
+      {
+        "company": "AAPL",
+        "score": 5.5,
+        "rating": "Negative",
+        "bar_percentage": 55
+      },
+      {
+        "company": "V",
+        "score": 4.5,
+        "rating": "Negative",
+        "bar_percentage": 45
+      },
+      {
+        "company": "MA",
+        "score": 3.2,
+        "rating": "Negative",
+        "bar_percentage": 32
+      },
+      {
+        "company": "AMZN",
+        "score": 4.3,
+        "rating": "Negative",
+        "bar_percentage": 43
+      },
+      {
+        "company": "JPM",
+        "score": 2.5,
+        "rating": "Negative",
+        "bar_percentage": 25
+      },
+      {
+        "company": "TSLA",
+        "score": 0.0,
+        "rating": "Negative",
+        "bar_percentage": 0
+      }
+    ]
+  },
+  "insights": [
+    {
+      "company": "NVDA",
+      "text": "NVIDIA data-centre revenue surges as AI chip demand remains insatiable \u2014 NVIDIA demonstrates exceptional quality metrics with a return on equity of 55%, an operating margin of 55%, and strong revenue and EPS growth rates of 122% and 130%, respectively. The debt-to-equity ratio of 0.4 indicates a solid financial position."
+    },
+    {
+      "company": "META",
+      "text": "Meta advertising revenue up 22% driven by Reels and AI targeting \u2014 Meta demonstrates strong fundamentals with a return on equity of 32%, an operating margin of 35%, and a low debt-to-equity ratio of 0.2. The company has shown robust revenue growth of 22% and earnings per share growth of 28%, indicating solid financial health and operational efficiency."
+    },
+    {
+      "company": "MSFT",
+      "text": "Microsoft beats Q4 estimates on AI and enterprise demand \u2014 Microsoft demonstrates strong fundamentals with a return on equity of 38%, an operating margin of 42%, and a manageable debt-to-equity ratio of 0.7. The company is experiencing robust revenue and EPS growth at 16% and 20%, respectively, indicating solid operational efficiency and profitability."
+    },
+    {
+      "company": "GOOGL",
+      "text": "Alphabet ad revenue rebounds as AI search integrations gain traction \u2014 Alphabet demonstrates strong fundamentals with a return on equity of 22%, an operating margin of 25%, and a low debt-to-equity ratio of 0.1. The company is experiencing solid revenue growth at 14% and earnings per share growth of 18%, indicating robust financial health."
+    },
+    {
+      "company": "AAPL",
+      "text": "Apple services revenue hits record as iPhone growth slows \u2014 Apple demonstrates strong quality metrics with a high return on equity of 45% and an operating margin of 30%. However, the debt-to-equity ratio of 1.5 indicates a moderate level of financial leverage. Revenue growth is steady at 6%, and EPS growth is robust at 10%, reflecting solid operational performance."
+    }
+  ],
+  "data_sources": [
+    {
+      "name": "Market Data API",
+      "type": "market"
+    },
+    {
+      "name": "Fundamental Data API",
+      "type": "fundamental"
+    },
+    {
+      "name": "News/Search API",
+      "type": "news"
+    }
+  ],
+  "system_metadata": {
+    "vector_index": {
+      "provider": "Pinecone",
+      "stored_memos": 0,
+      "lookback_weeks": 6
+    }
+  },
+  "tool_errors": []
+}

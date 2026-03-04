@@ -1,0 +1,106 @@
+{
+  "name": "Investora AI — Telegram Alerts",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Receive Alerts Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "path": "investora-alerts",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "investora-alerts"
+    },
+    {
+      "id": "2",
+      "name": "Split Alerts Into Items",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "parameters": {
+        "fieldToSplitOut": "body.alerts",
+        "options": {
+          "destinationFieldName": "alert"
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Format Telegram Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const alert = $input.item.json.alert;\nconst runDate = $input.item.json.body?.run_date || '';\n\nconst directionEmoji = {\n  up: '🟢',\n  down: '🔴',\n  neutral: '🟡'\n}[alert.direction] || '⚪';\n\nconst directionLabel = {\n  up: '↑ UP',\n  down: '↓ DOWN',\n  neutral: '→ NEUTRAL'\n}[alert.direction] || alert.direction;\n\nconst signalLabel = {\n  quality: 'Quality',\n  momentum: 'Momentum',\n  news_catalyst: 'News Catalyst',\n  risk_flag: '⚠️ Data Risk'\n}[alert.signal_type] || alert.signal_type;\n\nconst scoreStr = alert.score != null ? `Score: ${alert.score.toFixed(1)}` : '';\nconst narrativeStr = alert.narrative ? `\\n\\n${alert.narrative}` : '';\n\nconst tag = `#${alert.ticker} #${alert.signal_type.replace('_', '')} #alert`;\n\nconst message = [\n  `${directionEmoji} *${alert.ticker}* — ${signalLabel} Signal`,\n  `📊 ${scoreStr} | Severity: ${alert.severity.toUpperCase()} | Direction: ${directionLabel}`,\n  `📅 ${runDate}`,\n  narrativeStr,\n  '',\n  tag\n].filter(l => l !== undefined).join('\\n');\n\nreturn [{ json: { message } }];"
+      }
+    },
+    {
+      "id": "4",
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 300],
+      "parameters": {
+        "chatId": "={{ $vars.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "disable_web_page_preview": true
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "id": "5",
+      "name": "Respond 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ received: true, alert_count: $('Receive Alerts Webhook').item.json.body.alert_count }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive Alerts Webhook": {
+      "main": [
+        [{ "node": "Split Alerts Into Items", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split Alerts Into Items": {
+      "main": [
+        [{ "node": "Format Telegram Message", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Telegram Message": {
+      "main": [
+        [{ "node": "Send to Telegram", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send to Telegram": {
+      "main": [
+        [{ "node": "Respond 200 OK", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "description": "Receives ALERT_EVENT signals from Investora AI LangGraph backend and sends each as a formatted Telegram message. Set TELEGRAM_CHAT_ID in n8n Variables and configure the Telegram Bot credential before activating."
+  }
+}

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ExternalLink, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import type { InsightItem } from "@/lib/report";
 
 interface NewsItem {
   id: number;
@@ -29,10 +30,28 @@ const sentimentConfig = {
   neutral: { icon: Minus, color: "text-warning", bg: "bg-warning/10", label: "Neutral" },
 };
 
-export function NewsFeed() {
+interface NewsFeedProps {
+  insights?: InsightItem[];
+}
+
+export function NewsFeed({ insights }: NewsFeedProps) {
+  const items: NewsItem[] =
+    insights && insights.length > 0
+      ? insights.map((ins, i) => ({
+          id: i + 1,
+          title: ins.text,
+          source: "LangGraph Report",
+          sentiment: "neutral" as const,
+          score: 0,
+          time: "This week",
+          url: "#",
+          tickers: [ins.company],
+        }))
+      : mockNews;
+
   return (
     <div className="space-y-2">
-      {mockNews.map((item, i) => {
+      {items.map((item, i) => {
         const config = sentimentConfig[item.sentiment];
         const Icon = config.icon;
         return (

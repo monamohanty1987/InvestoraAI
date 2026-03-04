@@ -1,0 +1,144 @@
+{
+  "name": "Investora AI — Weekly Full Run (Cron)",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Every Monday 06:00 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [1],
+              "triggerAtHour": 6,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "Trigger Full Weekly Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.INVESTORA_API_URL }}/run-weekly",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.CRON_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"no_post\": false }",
+        "options": {
+          "timeout": 600000
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Run Succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.errors.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4",
+      "name": "Notify Success",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 200],
+      "parameters": {
+        "chatId": "={{ $vars.TELEGRAM_CHAT_ID }}",
+        "text": "✅ *Investora AI — Weekly Run Complete*\n\n📅 Run date: {{ $('Trigger Full Weekly Run').item.json.run_date }}\n🎯 Tickers: {{ $('Trigger Full Weekly Run').item.json.tickers.join(', ') }}\n⚠️ Errors: 0",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "id": "5",
+      "name": "Notify Failure",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 420],
+      "parameters": {
+        "chatId": "={{ $vars.TELEGRAM_CHAT_ID }}",
+        "text": "🔴 *Investora AI — Weekly Run Errors*\n\n📅 Run date: {{ $('Trigger Full Weekly Run').item.json.run_date }}\n⚠️ Errors: {{ $('Trigger Full Weekly Run').item.json.errors.length }}\n\nFirst error: {{ $('Trigger Full Weekly Run').item.json.errors[0]?.error || 'unknown' }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Monday 06:00 UTC": {
+      "main": [
+        [{ "node": "Trigger Full Weekly Run", "type": "main", "index": 0 }]
+      ]
+    },
+    "Trigger Full Weekly Run": {
+      "main": [
+        [{ "node": "Run Succeeded?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Run Succeeded?": {
+      "main": [
+        [{ "node": "Notify Success", "type": "main", "index": 0 }],
+        [{ "node": "Notify Failure", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "description": "Triggers a full Investora AI weekly run every Monday at 06:00 UTC, then sends a Telegram success or failure notification. Set INVESTORA_API_URL, CRON_SECRET, and TELEGRAM_CHAT_ID in n8n Variables. Configure the Telegram Bot credential before activating."
+  }
+}

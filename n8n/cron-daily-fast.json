@@ -1,0 +1,127 @@
+{
+  "name": "Investora AI — Daily Fast Scan (Cron)",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Mon–Fri 07:00 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [1, 2, 3, 4, 5],
+              "triggerAtHour": 7,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "Trigger Fast Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.INVESTORA_API_URL }}/run-analysis",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.CRON_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"skip_synthesis\": true, \"no_post\": false }",
+        "options": {
+          "timeout": 300000
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Any Alerts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ($json.report_json?.top_opportunities || []).filter(o => o.score >= 8.5 || o.score <= 1.5).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "largerEqual"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4",
+      "name": "Forward to Alert Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.INVESTORA_API_URL.replace('/api', '') }}/webhook/investora-alerts",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ run_id: $('Trigger Fast Analysis').item.json.run_id, run_date: $('Trigger Fast Analysis').item.json.run_date, alert_count: $('Trigger Fast Analysis').item.json.report_json?.top_opportunities?.filter(o => o.score >= 8.5 || o.score <= 1.5).length || 0, alerts: [] }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "5",
+      "name": "No Alerts — Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 420],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Mon–Fri 07:00 UTC": {
+      "main": [
+        [{ "node": "Trigger Fast Analysis", "type": "main", "index": 0 }]
+      ]
+    },
+    "Trigger Fast Analysis": {
+      "main": [
+        [{ "node": "Any Alerts?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Any Alerts?": {
+      "main": [
+        [{ "node": "Forward to Alert Webhook", "type": "main", "index": 0 }],
+        [{ "node": "No Alerts — Skip", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "description": "Runs a fast daily scan (no LLM synthesis) Mon–Fri at 07:00 UTC. If high-scoring alerts are present they are forwarded to the investora-alerts webhook for Telegram delivery. Set INVESTORA_API_URL and CRON_SECRET in n8n Variables before activating."
+  }
+}

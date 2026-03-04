@@ -1,0 +1,133 @@
+{
+  "name": "Investora AI — Run Monitor",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Receive Monitor Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "path": "investora-monitor",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "investora-monitor"
+    },
+    {
+      "id": "2",
+      "name": "Has Errors?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.error_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "largerEqual"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Format Error Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 180],
+      "parameters": {
+        "jsCode": "const b = $input.item.json.body;\nconst statusEmoji = b.status === 'ok' ? '✅' : '🔴';\nconst scope = b.scope || 'full';\n\nconst message = [\n  `${statusEmoji} *Investora AI — Run ${b.status === 'ok' ? 'Complete' : 'ERROR'}*`,\n  `📅 Date: ${b.run_date}`,\n  `🔬 Scope: ${scope}`,\n  `📊 Signals: ${b.signal_count}`,\n  `⚠️ Errors: ${b.error_count}`,\n  b.duration ? `⏱ Duration: ${b.duration}` : '',\n  '',\n  `#run_${b.status} #${scope}`,\n].filter(l => l !== undefined).join('\\n');\n\nreturn [{ json: { message, has_errors: b.error_count > 0 } }];"
+      }
+    },
+    {
+      "id": "4",
+      "name": "Format Success Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 420],
+      "parameters": {
+        "jsCode": "const b = $input.item.json.body;\n\nconst message = [\n  `✅ *Investora AI — Run Complete*`,\n  `📅 Date: ${b.run_date} | Scope: ${b.scope || 'full'}`,\n  `📊 ${b.signal_count} signals generated`,\n  '',\n  `#run_ok`,\n].filter(l => l !== undefined).join('\\n');\n\nreturn [{ json: { message, has_errors: false } }];"
+      }
+    },
+    {
+      "id": "5",
+      "name": "Send Error Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 180],
+      "parameters": {
+        "chatId": "={{ $vars.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "disable_web_page_preview": true
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "id": "6",
+      "name": "Respond 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ received: true, status: $('Receive Monitor Event').item.json.body.status }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive Monitor Event": {
+      "main": [
+        [{ "node": "Has Errors?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Has Errors?": {
+      "main": [
+        [{ "node": "Format Error Alert", "type": "main", "index": 0 }],
+        [{ "node": "Format Success Summary", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Error Alert": {
+      "main": [
+        [{ "node": "Send Error Alert", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Success Summary": {
+      "main": [
+        [{ "node": "Respond 200 OK", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Error Alert": {
+      "main": [
+        [{ "node": "Respond 200 OK", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "description": "Receives RUN_COMPLETE and RUN_ERROR monitoring events from Investora AI's persist_snapshot_node. Sends a Telegram alert only when error_count > 0 (error runs); silent on clean runs. Set TELEGRAM_CHAT_ID in n8n Variables and configure the Telegram Bot credential before activating."
+  }
+}

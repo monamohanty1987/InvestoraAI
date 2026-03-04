@@ -1,15 +1,20 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Download, Activity, Newspaper, Bell, Radio, LogOut } from "lucide-react";
+import { Download, Activity, Newspaper, Bell, Radio, LogOut, RefreshCw, History } from "lucide-react";
+import { toast } from "sonner";
 import { NewsFeed } from "@/components/dashboard/NewsFeed";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { StatsBar } from "@/components/dashboard/StatsBar";
 import { SentimentGauge } from "@/components/dashboard/SentimentGauge";
 import { WorkflowStatus } from "@/components/dashboard/WorkflowStatus";
 import { DownloadSection } from "@/components/dashboard/DownloadSection";
+import { TopOpportunities } from "@/components/dashboard/TopOpportunities";
+import { StrategyBreakdown } from "@/components/dashboard/StrategyBreakdown";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/contexts/UserContext";
+import { useLatestReport, useRunWeekly, useStreamRun, useRunHistory } from "@/lib/report";
+import { FetchErrorBanner, ToolErrorsBanner, StaleReportNotice } from "@/components/dashboard/ReportStatusBanner";
 
 const INTEREST_LABELS: Record<string, string> = {
   tech: "Tech",
@@ -27,12 +32,47 @@ const RISK_COLORS: Record<string, string> = {
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<"feed" | "alerts" | "downloads">("feed");
+  const [showRunHistory, setShowRunHistory] = useState(false);
   const { user, logout } = useUser();
   const navigate = useNavigate();
+
+  const {
+    data: report,
+    isLoading: reportLoading,
+    isError: reportError,
+    error: reportErrorDetail,
+    isFetching: reportFetching,
+    refetch: refetchReport,
+  } = useLatestReport();
+
+  const { mutate: runWeekly, isPending: isGeneratingSync } = useRunWeekly();
+  const { startStream, nodeProgress, isStreaming, streamError } = useStreamRun();
+  const { data: runHistory } = useRunHistory();
+
+  const isGenerating = isGeneratingSync || isStreaming;
+
+  const handleGenerateReport = () => {
+    // Use SSE streaming run for live progress
+    startStream({ skipSynthesis: false }).then(() => {
+      toast.success("Report generated successfully");
+    }).catch((err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Generation failed");
+    });
+    if (streamError) toast.error(streamError);
+  };
+
+  const sentimentScore = useMemo(() => {
+    if (!report || report.top_opportunities.length === 0) return undefined;
+    const top3 = report.top_opportunities.slice(0, 3);
+    const avg = top3.reduce((s, o) => s + o.momentum.score, 0) / top3.length;
+    return (avg / 10) * 2 - 1;
+  }, [report]);
 
   const initials = (user?.username ?? "??").slice(0, 2).toUpperCase();
   const risk = user?.profile.riskTolerance ?? "medium";
   const interests = user?.profile.interests ?? [];
+
+  const latestRun = runHistory?.[0];
 
   return (
     <div className="min-h-screen bg-background bg-grid">
@@ -56,6 +96,50 @@ const Index = () => {
               <Radio className="w-3 h-3 animate-pulse" />
               LIVE
             </div>
+
+            {/* Run history dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowRunHistory((v) => !v)}
+                title="Run history"
+                className="flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-md border border-border/50 bg-muted/50 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all"
+              >
+                <History className="w-3 h-3" />
+                <span className="hidden sm:inline">History</span>
+              </button>
+              {showRunHistory && runHistory && runHistory.length > 0 && (
+                <div className="absolute right-0 top-full mt-1 w-72 bg-card border border-border/60 rounded-lg shadow-xl z-50 p-2 space-y-1">
+                  {runHistory.slice(0, 5).map((run) => (
+                    <div
+                      key={run.run_id}
+                      className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-muted/50 cursor-pointer text-xs font-mono"
+                      onClick={() => setShowRunHistory(false)}
+                    >
+                      <span className="text-foreground">{run.run_date}</span>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <span>{run.scope}</span>
+                        {run.error_count > 0 && (
+                          <span className="text-negative">{run.error_count} err</span>
+                        )}
+                        <span>{run.signal_count} signals</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleGenerateReport}
+              disabled={isGenerating}
+              title="Generate a new weekly report"
+              className="flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-md border border-border/50 bg-muted/50 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-3 h-3 ${isGenerating ? "animate-spin text-primary" : ""}`} />
+              <span className="hidden sm:inline">
+                {isStreaming ? "Running…" : isGeneratingSync ? "Generating…" : "Generate Report"}
+              </span>
+            </button>
 
             <div className="w-px h-4 bg-border/60" />
 
@@ -85,7 +169,12 @@ const Index = () => {
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Stats */}
-        <StatsBar />
+        <StatsBar
+          weeklyChangePct={report?.report.performance.weekly_change_percent}
+          opportunityCount={report?.top_opportunities.length}
+          errorCount={latestRun?.error_count}
+          runTimestamp={latestRun?.timestamp}
+        />
 
         {/* Personalization badges */}
         <div className="flex flex-wrap items-center gap-2">
@@ -115,8 +204,11 @@ const Index = () => {
 
         {/* Sentiment + Workflow Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <SentimentGauge />
-          <WorkflowStatus />
+          <SentimentGauge score={sentimentScore} />
+          <WorkflowStatus
+            dataSources={isStreaming ? undefined : report?.data_sources}
+            graphProgress={isStreaming ? nodeProgress : undefined}
+          />
         </div>
 
         {/* Tab Navigation */}
@@ -148,7 +240,46 @@ const Index = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === "feed" && <NewsFeed />}
+          {activeTab === "feed" && (
+            <div className="space-y-6">
+              {/* Loading state */}
+              {reportLoading && (
+                <div className="flex items-center gap-3 py-4">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span className="text-sm font-mono text-muted-foreground">Loading report…</span>
+                </div>
+              )}
+
+              {/* API fetch error (service down, network error, 404) */}
+              {!reportLoading && reportError && reportErrorDetail && (
+                <FetchErrorBanner
+                  error={reportErrorDetail}
+                  onRetry={() => refetchReport()}
+                  isRetrying={reportFetching}
+                />
+              )}
+
+              {/* Stale data notice */}
+              {report && (
+                <StaleReportNotice runDate={report.report.run_date} />
+              )}
+
+              {/* Partial data warning — tool errors from the last run */}
+              {report && report.tool_errors?.length > 0 && (
+                <ToolErrorsBanner errors={report.tool_errors} />
+              )}
+
+              {/* Report content */}
+              {report && (
+                <>
+                  <TopOpportunities opportunities={report.top_opportunities} />
+                  <StrategyBreakdown breakdown={report.strategy_breakdown} />
+                </>
+              )}
+
+              <NewsFeed insights={report?.insights} />
+            </div>
+          )}
           {activeTab === "alerts" && <AlertsPanel />}
           {activeTab === "downloads" && <DownloadSection />}
         </motion.div>
