@@ -19,6 +19,30 @@ from .run_weekly import run_analysis, run_weekly
 # Load .env from langgraph/ root — no-op on Render (env vars already injected)
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
+# ── Sentry (optional — only initialises when SENTRY_DSN is set) ───────────────
+# Wrapped in try/except so a bad DSN or import issue never crashes the server.
+# NOTE: We deliberately exclude LangChain/LangGraph integrations — they caused
+#       crashes on older Python versions and are not needed for API monitoring.
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+
+    _sentry_dsn = os.environ.get("SENTRY_DSN", "")
+    if _sentry_dsn:
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            environment=os.environ.get("ENVIRONMENT", "production"),
+            traces_sample_rate=0.1,      # capture 10% of requests for performance
+            send_default_pii=False,      # no PII in error reports
+            integrations=[
+                StarletteIntegration(transaction_style="endpoint"),
+                FastApiIntegration(transaction_style="endpoint"),
+            ],
+        )
+except Exception:
+    pass  # Sentry init failure must never crash the API server
+
 
 def _verify_cron_secret(authorization: str = Header(default="")) -> None:
     """Reject requests with a wrong Bearer token when CRON_SECRET is configured."""
