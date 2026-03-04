@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/contexts/UserContext";
 import { useLatestReport, useRunWeekly, useStreamRun, useRunHistory } from "@/lib/report";
 import { FetchErrorBanner, ToolErrorsBanner, StaleReportNotice } from "@/components/dashboard/ReportStatusBanner";
+import { ChatAgent } from "@/components/ChatAgent";
 
 const INTEREST_LABELS: Record<string, string> = {
   tech: "Tech",
@@ -284,6 +285,9 @@ const Index = () => {
           {activeTab === "downloads" && <DownloadSection />}
         </motion.div>
       </main>
+
+      {/* Chat Agent — floating bottom-right widget */}
+      <ChatAgent />
 
       {/* Footer */}
       <footer className="border-t border-border/50 mt-10 pb-20">
