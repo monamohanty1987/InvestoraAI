@@ -47,6 +47,11 @@ Required environment variable names are already present in `.env.example`:
 - `N8N_WEBHOOK_URL`
 - `OPENAI_API_KEY`
 - `PINECONE_API_KEY`
+- `PINECONE_HOST`
+- `RAG_EMBED_MODEL` (optional, default `text-embedding-3-small`)
+- `RAG_LOOKBACK_DAYS` (optional, default `42`)
+- `RAG_TOP_K` (optional, default `5`)
+- `RAG_STORED_MEMOS` (optional reporting metadata only)
 
 ## Run (CLI)
 
@@ -110,6 +115,8 @@ curl -X POST "https://ai-experiementation.app.n8n.cloud/webhook-test/langgraph-r
 - Universe is loaded from `STOCK_UNIVERSE` (CSV). Default is 3 tickers for now. If over 50 symbols, symbols are sorted and first 50 are used deterministically.
 - ReAct loop is implemented via `plan_next_action` node that decides missing tool calls per ticker (`market -> news`) and iterates until complete.
 - ReAct planner uses the OpenAI API (`OPENAI_API_KEY`) to choose the next tool action; if planning fails, an error is recorded.
+- RAG retrieval runs after scoring and before synthesis. It queries Pinecone by ticker + lookback window and adds retrieved evidence to LLM synthesis context.
+- RAG retrieval is soft-fail: if Pinecone/OpenAI embedding config is missing, runs continue with empty retrieval context.
 - Tool failures skip only the affected ticker and append structured errors.
 - Caching is stored in `data/cache`; weekly reports in `data/reports/YYYY-MM-DD.json`.
 - `prior_score` is loaded from the previous dated report file if it exists.

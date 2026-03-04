@@ -6,6 +6,7 @@ from .base import MCPToolError, MCPRetryableError, MCPValidationError
 from .fundamentals_tool import FundamentalsTool
 from .market_data_tool import MarketDataTool
 from .news_tool import NewsTool
+from .rag_tool import RAGRetrievalTool
 
 __all__ = [
     "MCPToolError",
@@ -14,9 +15,11 @@ __all__ = [
     "MarketDataTool",
     "FundamentalsTool",
     "NewsTool",
+    "RAGRetrievalTool",
     "get_market_tool",
     "get_fundamentals_tool",
     "get_news_tool",
+    "get_rag_tool",
 ]
 
 
@@ -44,3 +47,7 @@ def get_news_tool():
         return MockNewsTool()
     return NewsTool()
 
+
+def get_rag_tool():
+    # RAG always uses live Pinecone — USE_MOCK_DATA does not affect retrieval.
+    return RAGRetrievalTool()

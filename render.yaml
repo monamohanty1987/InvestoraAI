@@ -1,0 +1,70 @@
+services:
+  - type: web
+    name: investora-backend
+    runtime: python
+    rootDir: langgraph
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: ENVIRONMENT
+        value: production
+      - key: USE_MOCK_DATA
+        value: false
+
+      # OpenAI — set in Render dashboard
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: SYNTHESIS_MODEL
+        value: gpt-4o-mini
+
+      # Market data — Marketstack
+      - key: MARKET_DATA_API_BASE_URL
+        value: https://api.marketstack.com/v1
+      - key: MARKET_DATA_API_KEY
+        sync: false
+
+      # Fundamentals — FMP
+      - key: FUNDAMENTALS_API_BASE_URL
+        value: https://financialmodelingprep.com
+      - key: FUNDAMENTALS_API_KEY
+        sync: false
+
+      # News — Finnhub
+      - key: NEWS_API_BASE_URL
+        value: https://finnhub.io/api/v1
+      - key: NEWS_API_KEY
+        sync: false
+
+      # RAG — Pinecone (optional)
+      - key: PINECONE_HOST
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+
+      # n8n webhooks (optional — soft-fails if blank)
+      - key: N8N_WEBHOOK_URL
+        sync: false
+      - key: ALERT_WEBHOOK_URL
+        sync: false
+      - key: CANDIDATE_WEBHOOK_URL
+        sync: false
+      - key: MONITOR_WEBHOOK_URL
+        sync: false
+
+      # Security
+      - key: API_SECRET_KEY
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+      # CORS — set to your Vercel URL e.g. https://investora-ai.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+
+      # Sentry (optional)
+      - key: SENTRY_DSN
+        sync: false

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -101,6 +102,8 @@ def build_report(
     report_dir: str = "data/reports",
     errors: Optional[List[Dict[str, str]]] = None,
     synthesis: Optional[Dict[str, Any]] = None,
+    rag_context: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+    rag_stats: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
     report_path = Path(report_dir)
     report_path.mkdir(parents=True, exist_ok=True)
@@ -142,7 +145,25 @@ def build_report(
 
         news = per_ticker_data.get(ticker, {}).get("news", {}).get("articles", [])
         ticker_syn = (synthesis or {}).get(ticker)
-        insights.append({"company": ticker, "text": _synthesis_insight(ticker_syn, news)})
+        evidence_rows = (rag_context or {}).get(ticker, [])[:3]
+        evidence = [
+            {
+                "title": str(row.get("title", "")),
+                "source": str(row.get("source", "")),
+                "date": str(row.get("date", "")),
+                "url": str(row.get("url", "")),
+                "score": float(row.get("score", 0.0)),
+            }
+            for row in evidence_rows
+            if row.get("title") or row.get("text")
+        ]
+        insights.append(
+            {
+                "company": ticker,
+                "text": _synthesis_insight(ticker_syn, news),
+                "evidence": evidence,
+            }
+        )
 
     strategy_quality = []
     strategy_momentum = []
@@ -194,8 +215,10 @@ def build_report(
         "system_metadata": {
             "vector_index": {
                 "provider": "Pinecone",
-                "stored_memos": 0,
+                "stored_memos": int(os.environ.get("RAG_STORED_MEMOS", "0")),
                 "lookback_weeks": 6,
+                "retrieved_items": int((rag_stats or {}).get("retrieved_items", 0)),
+                "queries_run": int((rag_stats or {}).get("queries_run", 0)),
             }
         },
         "tool_errors": errors or [],

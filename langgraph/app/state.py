@@ -47,6 +47,7 @@ class StrategyItem(TypedDict):
 class InsightItem(TypedDict):
     company: str
     text: str
+    evidence: List[Dict[str, Any]]
 
 
 class DataSourceItem(TypedDict):
@@ -58,6 +59,8 @@ class VectorIndexMetadata(TypedDict):
     provider: str
     stored_memos: int
     lookback_weeks: int
+    retrieved_items: int
+    queries_run: int
 
 
 class SystemMetadata(TypedDict):
@@ -87,6 +90,8 @@ class GraphState(TypedDict):
     failed_tickers: List[str]
     per_ticker_data: Dict[str, Dict[str, Any]]
     scores: Dict[str, Dict[str, float]]
+    per_ticker_rag_context: Dict[str, List[Dict[str, Any]]]  # {ticker: retrieved evidence chunks}
+    rag_stats: Dict[str, int]               # {"retrieved_items": int, "queries_run": int}
     per_ticker_synthesis: Dict[str, Any]  # {ticker: SynthesisResult}; populated by synthesize_evidence_node
     signal_events: List[SignalEvent]      # populated by emit_signals_node after scoring
     report_json: Optional[ReportPayload]

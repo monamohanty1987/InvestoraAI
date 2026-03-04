@@ -187,3 +187,15 @@ class MockNewsTool:
             "source": "Mock (Finnhub)",
             "articles": _MOCK_NEWS.get(ticker, []),
         }
+
+
+class MockRAGRetrievalTool:
+    def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        ticker = str(payload.get("ticker", "")).upper()
+        return {
+            "ticker": ticker,
+            "query": str(payload.get("query", "")),
+            "matches": [],
+            "retrieved_count": 0,
+            "enabled": False,
+        }

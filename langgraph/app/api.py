@@ -8,12 +8,40 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .run_weekly import run_analysis, run_weekly
+
+# Load .env from langgraph/ root — no-op on Render (env vars already injected)
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+# ── Sentry (optional — only initialises when SENTRY_DSN is set) ───────────────
+# Wrapped in try/except so a bad DSN or import issue never crashes the server.
+# NOTE: We deliberately exclude LangChain/LangGraph integrations — they caused
+#       crashes on older Python versions and are not needed for API monitoring.
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+
+    _sentry_dsn = os.environ.get("SENTRY_DSN", "")
+    if _sentry_dsn:
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            environment=os.environ.get("ENVIRONMENT", "production"),
+            traces_sample_rate=0.1,      # capture 10% of requests for performance
+            send_default_pii=False,      # no PII in error reports
+            integrations=[
+                StarletteIntegration(transaction_style="endpoint"),
+                FastApiIntegration(transaction_style="endpoint"),
+            ],
+        )
+except Exception:
+    pass  # Sentry init failure must never crash the API server
 
 
 def _verify_cron_secret(authorization: str = Header(default="")) -> None:
@@ -26,8 +54,13 @@ def _verify_cron_secret(authorization: str = Header(default="")) -> None:
 
 app = FastAPI(title="LangGraph Weekly Market Agent", version="1.0.0")
 
+# CORS — allow localhost in dev + production origins from CORS_ORIGINS env var
+_raw_origins = os.environ.get("CORS_ORIGINS", "")
+_explicit_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=_explicit_origins,
     allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
