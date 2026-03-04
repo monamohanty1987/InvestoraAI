@@ -249,23 +249,138 @@
   "insights": [
     {
       "company": "NVDA",
-      "text": "NVIDIA data-centre revenue surges as AI chip demand remains insatiable \u2014 NVIDIA demonstrates exceptional quality metrics with a return on equity of 55%, an operating margin of 55%, and strong revenue and EPS growth rates of 122% and 130%, respectively. The debt-to-equity ratio of 0.4 indicates a solid financial position."
+      "text": "NVIDIA data-centre revenue surges as AI chip demand remains insatiable \u2014 NVIDIA demonstrates strong fundamentals with a return on equity of 55%, an operating margin of 55%, and a low debt-to-equity ratio of 0.4. The company has shown remarkable revenue growth of 122% and earnings per share growth of 130%, indicating robust financial health and operational efficiency.",
+      "evidence": [
+        {
+          "title": "Is It Too Late To Consider NVIDIA (NVDA) After Recent Share Price Pullback?",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=682d5ad10ddfef16442ceb75c6e0231a170ca15125cf64011427a8337f755450",
+          "score": 0.570982039
+        },
+        {
+          "title": "After Soaring Nearly 1,300% in 5 Years, Can Nvidia's Stock Still Rise Higher?",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=a651df356f410fb6ca0edbd2b0948b66bea02f2ca0d3feba9315c5628d92594c",
+          "score": 0.442990333
+        },
+        {
+          "title": "2 Nuclear Energy Stocks to Buy in March",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=a3534507626916e94caec97d7c8a353c434f61a26e60365c33c57cdd065ded18",
+          "score": 0.402648
+        }
+      ]
     },
     {
       "company": "META",
-      "text": "Meta advertising revenue up 22% driven by Reels and AI targeting \u2014 Meta demonstrates strong fundamentals with a return on equity of 32%, an operating margin of 35%, and a low debt-to-equity ratio of 0.2. The company has shown robust revenue growth of 22% and earnings per share growth of 28%, indicating solid financial health and operational efficiency."
+      "text": "Meta advertising revenue up 22% driven by Reels and AI targeting \u2014 Meta demonstrates strong fundamentals with a return on equity of 32%, an operating margin of 35%, and a low debt-to-equity ratio of 0.2. The company has shown robust revenue growth of 22% and earnings per share growth of 28%, indicating solid financial health.",
+      "evidence": [
+        {
+          "title": "2 Monster Stocks to Hold for the Next 5 Years",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=5602b448b407fc43c8d52c6c3f0b997be2af064d4314ccde1477d46c07b69f22",
+          "score": 0.390742302
+        },
+        {
+          "title": "Tracking Terry Smith's Fundsmith 13F Portfolio - Q4 2025 Update",
+          "source": "SeekingAlpha",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=8f1f9b699b107d7bd9101ce6e9351bc68258dfede043288f698a2af033b0acdb",
+          "score": 0.355843514
+        },
+        {
+          "title": "Deal between AMD and Meta could bring greater innovation to GenAI market",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=a315593e63007cdaec945d9843b4d1dcfec5bb4cbb51267945e9cb0f1e4038c3",
+          "score": 0.347293854
+        }
+      ]
     },
     {
       "company": "MSFT",
-      "text": "Microsoft beats Q4 estimates on AI and enterprise demand \u2014 Microsoft demonstrates strong fundamentals with a return on equity of 38%, an operating margin of 42%, and a manageable debt-to-equity ratio of 0.7. The company is experiencing robust revenue and EPS growth at 16% and 20%, respectively, indicating solid operational efficiency and profitability."
+      "text": "Microsoft beats Q4 estimates on AI and enterprise demand \u2014 Microsoft demonstrates strong fundamentals with a return on equity of 38%, an operating margin of 42%, and a revenue growth rate of 16%. The earnings per share growth of 20% further indicates robust financial health.",
+      "evidence": [
+        {
+          "title": "Jim Cramer Says He Is \u201cVery Worried About Microsoft\u201d",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=c11015e55611992374ef0748ab6190ce48dd617634b65dcadbc916f57a20dd8b",
+          "score": 0.474626482
+        },
+        {
+          "title": "Microsoft Market Value Plunges By $1 Trillion",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=50db8562c0077835bd6c4e1adccf1a4012d8ce4fa74baeea67db12026c0aff6d",
+          "score": 0.400876939
+        },
+        {
+          "title": "Tracking Terry Smith's Fundsmith 13F Portfolio - Q4 2025 Update",
+          "source": "SeekingAlpha",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=8f1f9b699b107d7bd9101ce6e9351bc68258dfede043288f698a2af033b0acdb",
+          "score": 0.365204781
+        }
+      ]
     },
     {
       "company": "GOOGL",
-      "text": "Alphabet ad revenue rebounds as AI search integrations gain traction \u2014 Alphabet demonstrates strong fundamentals with a return on equity of 22%, an operating margin of 25%, and a low debt-to-equity ratio of 0.1. The company is experiencing solid revenue growth at 14% and earnings per share growth of 18%, indicating robust financial health."
+      "text": "Alphabet ad revenue rebounds as AI search integrations gain traction \u2014 Alphabet (GOOGL) demonstrates strong fundamentals with a return on equity of 22%, an operating margin of 25%, and a low debt-to-equity ratio of 0.1. The company has shown revenue growth of 14% and EPS growth of 18%, indicating solid financial health and operational efficiency.",
+      "evidence": [
+        {
+          "title": "Is Alphabet (GOOGL) Still Attractively Priced After AI Headlines And Recent Share Pullback",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=1b675c91d4e9fbb85e60d3b7b8a70ccae11bee78a713b895c09518e4927cdf3d",
+          "score": 0.477726966
+        },
+        {
+          "title": "Google Stock: How To Find & Own America's Greatest Opportunities",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=fa4ebc5bff1560dc5309ce13f9decbb95ec71d3ce39d3106965244d8be66387d",
+          "score": 0.46865654
+        },
+        {
+          "title": "Latest News From Amazon and Meta Shows Why Alphabet Is the AI Stock to Beat",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=087e5cf63651200c3bbc2c9bc63a4c4a5a5324b8b41118e035fa26d243e07315",
+          "score": 0.303269386
+        }
+      ]
     },
     {
       "company": "AAPL",
-      "text": "Apple services revenue hits record as iPhone growth slows \u2014 Apple demonstrates strong quality metrics with a high return on equity of 45% and an operating margin of 30%. However, the debt-to-equity ratio of 1.5 indicates a moderate level of financial leverage. Revenue growth is steady at 6%, and EPS growth is robust at 10%, reflecting solid operational performance."
+      "text": "Apple services revenue hits record as iPhone growth slows \u2014 Apple demonstrates strong fundamentals with a high return on equity (45%) and solid operating margins (30%). Revenue growth is steady at 6%, and earnings per share growth is at 10%. However, the debt-to-equity ratio of 1.5 indicates a moderate level of financial leverage.",
+      "evidence": [
+        {
+          "title": "Wedbush maintains $350 Apple target as product blitz reinforces AI hardware push",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=d1599672f59c9412ea1abf6efa020b0f0cecf67c700916e29ce29c53705b1ebb",
+          "score": 0.521512091
+        },
+        {
+          "title": "Tech stocks today: Apple unveils low-cost MacBook Neo, CoreWeave inks deal with Perplexity",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=138f3c3f82ef8ae903968676d5bc6c2015548955ae0660d7c3421f5fdf5e5575",
+          "score": 0.496219665
+        },
+        {
+          "title": "Budget iPhone 17e to Boost Apple Revenues? ETFs to Consider",
+          "source": "Yahoo",
+          "date": "2026-03-04",
+          "url": "https://finnhub.io/api/news?id=4b4ac07184f54f1e8f9368f72b9417b5448d9d185bb46634364e4daf811ed9bd",
+          "score": 0.48353678
+        }
+      ]
     }
   ],
   "data_sources": [
@@ -286,7 +401,9 @@
     "vector_index": {
       "provider": "Pinecone",
       "stored_memos": 0,
-      "lookback_weeks": 6
+      "lookback_weeks": 6,
+      "retrieved_items": 50,
+      "queries_run": 10
     }
   },
   "tool_errors": []

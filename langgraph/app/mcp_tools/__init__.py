@@ -49,7 +49,5 @@ def get_news_tool():
 
 
 def get_rag_tool():
-    if _use_mock():
-        from .mock_tools import MockRAGRetrievalTool
-        return MockRAGRetrievalTool()
+    # RAG always uses live Pinecone — USE_MOCK_DATA does not affect retrieval.
     return RAGRetrievalTool()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
@@ -72,15 +72,14 @@ class RAGRetrievalTool(HTTPCachedTool):
 
         try:
             vector = self._embed(model.query)
+            cutoff_ts = int(datetime(from_date.year, from_date.month, from_date.day).timestamp())
             request_body: Dict[str, Any] = {
                 "vector": vector,
                 "topK": model.top_k,
                 "includeMetadata": True,
                 "filter": {
-                    "$and": [
-                        {"ticker": {"$eq": ticker}},
-                        {"date": {"$gte": from_date.isoformat()}},
-                    ]
+                    "ticker": {"$eq": ticker},
+                    "timestamp": {"$gte": cutoff_ts},
                 },
             }
             if model.namespace:
