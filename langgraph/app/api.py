@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Header, Query
+from fastapi import Body, Depends, FastAPI, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -301,9 +301,49 @@ def get_market_news(ticker: str):
     from .mcp_tools.news_tool import NewsTool
 
     try:
-        return NewsTool().run({"ticker": ticker.upper()})
+        result = NewsTool().run({"ticker": ticker.upper()})
+        # NewsTool returns {ticker, source, articles:[]} — unwrap the array so
+        # the frontend can call .slice() directly on the response.
+        return result.get("articles", [])
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/universe")
+def get_universe():
+    """Return the full ticker universe used by the LangGraph pipeline.
+
+    Reads ``universe_mock.json`` when the file exists (100 S&P 100 tickers with
+    sector metadata, mock scores, and volume figures).  Falls back to the
+    10-ticker DEFAULT_UNIVERSE constant when the file is absent.
+
+    Response shape (mirrors universe_mock.json):
+    ```json
+    {
+      "generated_at": "2026-03-05",
+      "tickers": [
+        {"ticker": "AAPL", "name": "Apple Inc.", "sector": "Technology", ...},
+        ...
+      ]
+    }
+    ```
+    """
+    import json as _json
+    from .graph import DEFAULT_UNIVERSE, _UNIVERSE_PATH
+
+    if _UNIVERSE_PATH.exists():
+        try:
+            with _UNIVERSE_PATH.open() as f:
+                data = _json.load(f)
+            return data
+        except Exception as exc:
+            logger.warning("get_universe: failed to load universe_mock.json: %s", exc)
+
+    # Fallback: return the 10-ticker default universe in a compatible envelope
+    return {
+        "generated_at": None,
+        "tickers": [{"ticker": t} for t in DEFAULT_UNIVERSE],
+    }
 
 
 @app.get("/market/search")
@@ -547,3 +587,58 @@ def delete_user_alert(user_id: str, alert_id: str):
     init_db()
     if not delete_alert(alert_id):
         raise HTTPException(status_code=404, detail="Alert not found")
+
+
+# ── v3 Personalization Endpoints (Iteration 1) ────────────────────────────
+
+
+@app.put("/user/{user_id}/profile")
+def put_user_profile(user_id: str, profile: Dict[str, Any] = Body(...)):
+    """
+    Mirror a user's profile JSON to SQLite so the LangGraph PersonalizationNode
+    can read it at run time.  Called by the frontend alongside the n8n webhook.
+    Returns 200 {"ok": True} on success; any DB error surfaces as 500.
+    """
+    from .event_store import init_db
+    from .profile_store import save_profile
+
+    init_db()
+    save_profile(user_id, profile)
+    return {"ok": True, "user_id": user_id}
+
+
+@app.get("/user/{user_id}/dashboard")
+def get_user_dashboard(user_id: str):
+    """
+    Return the most recent UserReportBundle for a user, or 404 if no
+    personalized bundle exists yet (i.e., no analysis run has completed
+    the personalization node).
+    """
+    from .event_store import init_db, load_latest_bundle
+
+    init_db()
+    bundle = load_latest_bundle(user_id)
+    if bundle is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No dashboard data yet. Trigger an analysis run first.",
+        )
+    return bundle
+
+
+@app.get("/user/{user_id}/personalized-signals")
+def get_user_personalized_signals(user_id: str):
+    """
+    Lightweight alternative to /dashboard — returns only the watchlist and
+    discovery signal buckets from the latest personalized bundle.
+    """
+    from .event_store import init_db, load_latest_bundle
+
+    init_db()
+    bundle = load_latest_bundle(user_id)
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="No personalized signals yet.")
+    return {
+        "watchlist_signals": bundle.get("watchlist_signals", []),
+        "discovery_signals": bundle.get("discovery_signals", []),
+    }

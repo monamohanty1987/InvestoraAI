@@ -5,6 +5,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from langgraph.graph import END, StateGraph
@@ -20,6 +21,8 @@ from .mcp_tools import (
 from .alert_checker import check_user_alerts
 from .alert_client import post_alerts_to_n8n, post_user_alerts_to_n8n
 from .n8n_client import post_candidates_to_n8n, post_report_to_n8n
+from .budget_manager import budget_manager
+from .profile_store import load_all_profiles
 from .reporting import DEFAULT_COMPANIES, build_markdown, build_report, persist_report
 from .scoring import compute_all_scores, momentum_weekly_return
 from .state import GraphState, today_iso
@@ -38,6 +41,29 @@ DEFAULT_UNIVERSE = [
     "TSLA",
     "V",
 ]
+
+# Path to the 100-ticker mock universe (relative to this file's parent package)
+_UNIVERSE_PATH = Path(__file__).parent.parent / "data" / "universe_mock.json"
+
+
+def _load_universe_tickers() -> List[str]:
+    """Return the ticker list to process, in priority order:
+    1. universe_mock.json (if file exists) — 100 S&P 100 tickers
+    2. STOCK_UNIVERSE env var (comma-separated, capped at 50)
+    3. DEFAULT_UNIVERSE constant (10 tickers)
+    Caller-seeded tickers from init_state() take priority over all of the above.
+    """
+    if _UNIVERSE_PATH.exists():
+        try:
+            with _UNIVERSE_PATH.open() as f:
+                data = json.load(f)
+            tickers = [t["ticker"] for t in data.get("tickers", [])]
+            if tickers:
+                logger.debug("_load_universe_tickers: loaded %d tickers from universe_mock.json", len(tickers))
+                return tickers
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("_load_universe_tickers: failed to load universe_mock.json: %s", exc)
+    return _parse_universe()
 
 
 def _configure_logging() -> None:
@@ -65,9 +91,22 @@ def init_state(state: GraphState) -> GraphState:
     # Caller may pre-seed run_id (for streaming), tickers, skip_synthesis, scope.
     run_id = state.get("run_id") or str(uuid.uuid4())
     run_date = state.get("run_date") or os.environ.get("RUN_DATE", today_iso())
-    tickers = state.get("tickers") or _parse_universe()
+
+    # Ticker source priority: caller-seeded > universe_mock.json > STOCK_UNIVERSE env > DEFAULT_UNIVERSE
+    tickers = state.get("tickers") or _load_universe_tickers()
+
     skip_synthesis = bool(state.get("skip_synthesis", False))
     scope = state.get("scope") or ("fast" if skip_synthesis else "full")
+
+    # Load all user profiles and collect watchlist tickers for prioritisation
+    user_profiles = load_all_profiles()
+    all_watchlist_tickers: List[str] = []
+    for profile in user_profiles:
+        all_watchlist_tickers.extend(profile.get("watchlist", []))
+
+    # Watchlist tickers are moved to the front; remaining tickers preserve their original order
+    tickers = budget_manager.prioritize_tickers(tickers, all_watchlist_tickers)
+
     per_ticker_data = {t: {} for t in tickers}
     return {
         "run_id": run_id,
@@ -91,6 +130,7 @@ def init_state(state: GraphState) -> GraphState:
         "report_markdown": "",
         "errors": [],
         "react_history": [],
+        "user_profiles": user_profiles,
     }
 
 
@@ -292,6 +332,28 @@ def execute_tool_action(state: GraphState) -> GraphState:
     if not ticker:
         return state
     action = state.get("action")
+
+    # Budget guard: skip the tool call if this run has exhausted its API allowance.
+    # Bypassed automatically when USE_MOCK_DATA=true (budget_manager.can_call returns True).
+    run_id = state.get("run_id", "unknown")
+    if not budget_manager.can_call(action, run_id):
+        logger.warning(
+            "budget_manager: run %s exhausted API budget; skipping %s/%s",
+            run_id, ticker, action,
+        )
+        if ticker not in state["failed_tickers"]:
+            state["failed_tickers"].append(ticker)
+        state["react_history"].append(
+            {
+                "phase": "observation",
+                "ticker": ticker,
+                "action": action or "unknown",
+                "message": "Skipped: API budget exhausted for this run.",
+            }
+        )
+        return state
+
+    budget_manager.record_call(action, run_id)
     try:
         if action == "market":
             _run_market_tool(state, ticker)

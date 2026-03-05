@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Dict, List, Literal, Optional, TypedDict
 
-from .models import SignalEvent, SynthesisResult
+from .models import SignalEvent, SynthesisResult, UserProfileContext
 
 
 class CompanyInfo(TypedDict):
@@ -99,6 +99,7 @@ class GraphState(TypedDict):
     report_markdown: str
     errors: List[Dict[str, str]]
     react_history: List[Dict[str, str]]
+    user_profiles: List[UserProfileContext]  # loaded in init_state; used in Iteration 4 personalisation
 
 
 def today_iso() -> str:
