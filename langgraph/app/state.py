@@ -94,6 +94,7 @@ class GraphState(TypedDict):
     rag_stats: Dict[str, int]               # {"retrieved_items": int, "queries_run": int}
     per_ticker_synthesis: Dict[str, Any]  # {ticker: SynthesisResult}; populated by synthesize_evidence_node
     signal_events: List[SignalEvent]      # populated by emit_signals_node after scoring
+    triggered_user_alerts: List[Dict[str, Any]]  # user-defined price alerts that fired
     report_json: Optional[ReportPayload]
     report_markdown: str
     errors: List[Dict[str, str]]

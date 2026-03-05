@@ -23,7 +23,8 @@ const DisclaimerBanner = () => {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-yellow-500/40 bg-yellow-500/10 backdrop-blur-sm">
+    /* On mobile, offset above the bottom tab bar (h-16 = 4rem) */
+    <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 border-t border-yellow-500/40 bg-yellow-500/10 backdrop-blur-sm">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3 text-sm text-foreground/90">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />

@@ -1,0 +1,48 @@
+Collecting yfinance
+  Downloading yfinance-1.2.0-py2.py3-none-any.whl.metadata (6.1 kB)
+Requirement already satisfied: pandas>=1.3.0 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from yfinance) (3.0.0)
+Requirement already satisfied: numpy>=1.16.5 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from yfinance) (2.4.2)
+Requirement already satisfied: requests>=2.31 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from yfinance) (2.32.5)
+Collecting multitasking>=0.0.7 (from yfinance)
+  Downloading multitasking-0.0.12.tar.gz (19 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: platformdirs>=2.0.0 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from yfinance) (4.5.1)
+Requirement already satisfied: pytz>=2022.5 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from yfinance) (2025.2)
+Collecting frozendict>=2.3.4 (from yfinance)
+  Downloading frozendict-2.4.7-py3-none-any.whl.metadata (23 kB)
+Collecting peewee>=3.16.2 (from yfinance)
+  Downloading peewee-4.0.1-py3-none-any.whl.metadata (8.5 kB)
+Requirement already satisfied: beautifulsoup4>=4.11.1 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from yfinance) (4.14.3)
+Collecting curl_cffi<0.14,>=0.7 (from yfinance)
+  Downloading curl_cffi-0.13.0-cp39-abi3-macosx_10_9_x86_64.whl.metadata (13 kB)
+Requirement already satisfied: protobuf>=3.19.0 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from yfinance) (6.33.5)
+Requirement already satisfied: websockets>=13.0 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from yfinance) (16.0)
+Requirement already satisfied: cffi>=1.12.0 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from curl_cffi<0.14,>=0.7->yfinance) (2.0.0)
+Requirement already satisfied: certifi>=2024.2.2 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from curl_cffi<0.14,>=0.7->yfinance) (2026.1.4)
+Requirement already satisfied: soupsieve>=1.6.1 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from beautifulsoup4>=4.11.1->yfinance) (2.8.3)
+Requirement already satisfied: typing-extensions>=4.0.0 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from beautifulsoup4>=4.11.1->yfinance) (4.15.0)
+Requirement already satisfied: pycparser in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from cffi>=1.12.0->curl_cffi<0.14,>=0.7->yfinance) (3.0)
+Requirement already satisfied: python-dateutil>=2.8.2 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from pandas>=1.3.0->yfinance) (2.9.0.post0)
+Requirement already satisfied: six>=1.5 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from python-dateutil>=2.8.2->pandas>=1.3.0->yfinance) (1.17.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from requests>=2.31->yfinance) (3.4.4)
+Requirement already satisfied: idna<4,>=2.5 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from requests>=2.31->yfinance) (3.11)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /Users/elsa/miniconda3/envs/py311env/lib/python3.11/site-packages (from requests>=2.31->yfinance) (2.5.0)
+Downloading yfinance-1.2.0-py2.py3-none-any.whl (130 kB)
+Downloading curl_cffi-0.13.0-cp39-abi3-macosx_10_9_x86_64.whl (5.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.7/5.7 MB 11.0 MB/s  0:00:00
+Downloading frozendict-2.4.7-py3-none-any.whl (16 kB)
+Downloading peewee-4.0.1-py3-none-any.whl (139 kB)
+Building wheels for collected packages: multitasking
+  Building wheel for multitasking (pyproject.toml): started
+  Building wheel for multitasking (pyproject.toml): finished with status 'done'
+  Created wheel for multitasking: filename=multitasking-0.0.12-py3-none-any.whl size=15635 sha256=ad24f5bdeecf28666402c6ea8dea0b85d5d7c4fcf4609285f1edc86a412b8c5a
+  Stored in directory: /Users/elsa/Library/Caches/pip/wheels/42/d6/84/bf57a755f4569494cd00de4bb46ef064874823f4d19c82e960
+Successfully built multitasking
+Installing collected packages: peewee, multitasking, frozendict, curl_cffi, yfinance
+
+Successfully installed curl_cffi-0.13.0 frozendict-2.4.7 multitasking-0.0.12 peewee-4.0.1 yfinance-1.2.0

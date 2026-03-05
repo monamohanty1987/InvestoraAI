@@ -17,6 +17,8 @@ from .mcp_tools import (
     get_news_tool,
     get_rag_tool,
 )
+from .alert_checker import check_user_alerts
+from .alert_client import post_alerts_to_n8n, post_user_alerts_to_n8n
 from .n8n_client import post_candidates_to_n8n, post_report_to_n8n
 from .reporting import DEFAULT_COMPANIES, build_markdown, build_report, persist_report
 from .scoring import compute_all_scores, momentum_weekly_return
@@ -84,6 +86,7 @@ def init_state(state: GraphState) -> GraphState:
         "rag_stats": {"retrieved_items": 0, "queries_run": 0},
         "per_ticker_synthesis": {},
         "signal_events": [],
+        "triggered_user_alerts": [],
         "report_json": None,
         "report_markdown": "",
         "errors": [],
@@ -544,22 +547,40 @@ def emit_signals_node(state: GraphState) -> GraphState:
     return state
 
 
-def post_alerts_node(state: GraphState) -> GraphState:
-    from .alert_client import post_alerts_to_n8n
+def check_user_alerts_node(state: GraphState) -> GraphState:
+    try:
+        triggered = check_user_alerts()
+        state["triggered_user_alerts"] = triggered
+        logger.info(
+            "check_user_alerts_node",
+            extra={"run_id": state["run_id"], "triggered_count": len(triggered)},
+        )
+    except Exception as exc:  # noqa: BLE001
+        state["errors"].append({"ticker": "*", "tool": "check_user_alerts", "error": str(exc)})
+    return state
 
+
+def post_alerts_node(state: GraphState) -> GraphState:
     skip_post = os.environ.get("SKIP_N8N_POST", "false").lower() == "true"
     if skip_post:
         return state
 
     alerts = [ev for ev in state["signal_events"] if ev["route"] == "ALERT_EVENT"]
-    if not alerts:
-        return state
+    if alerts:
+        try:
+            post_alerts_to_n8n(alerts, run_id=state["run_id"], run_date=state["run_date"])
+            logger.info("post_alerts_node", extra={"run_id": state["run_id"], "alert_count": len(alerts)})
+        except Exception as exc:  # noqa: BLE001
+            state["errors"].append({"ticker": "*", "tool": "alert_webhook", "error": str(exc)})
 
-    try:
-        post_alerts_to_n8n(alerts, run_id=state["run_id"], run_date=state["run_date"])
-        logger.info("post_alerts_node", extra={"run_id": state["run_id"], "alert_count": len(alerts)})
-    except Exception as exc:  # noqa: BLE001
-        state["errors"].append({"ticker": "*", "tool": "alert_webhook", "error": str(exc)})
+    user_alerts = state.get("triggered_user_alerts", [])
+    if user_alerts:
+        try:
+            post_user_alerts_to_n8n(user_alerts, run_id=state["run_id"], run_date=state["run_date"])
+            logger.info("post_alerts_node:user", extra={"run_id": state["run_id"], "user_alert_count": len(user_alerts)})
+        except Exception as exc:  # noqa: BLE001
+            state["errors"].append({"ticker": "*", "tool": "user_alert_webhook", "error": str(exc)})
+
     return state
 
 
@@ -676,6 +697,7 @@ def build_graph():
     graph.add_node("retrieve_rag_context", retrieve_rag_context_node)
     graph.add_node("synthesize_evidence", synthesize_evidence_node)
     graph.add_node("emit_signals", emit_signals_node)
+    graph.add_node("check_user_alerts", check_user_alerts_node)
     graph.add_node("post_alerts", post_alerts_node)
     graph.add_node("post_candidates", post_candidates_node)
     graph.add_node("assemble_report_json", assemble_report_json_node)
@@ -701,7 +723,8 @@ def build_graph():
     graph.add_edge("compute_scores", "retrieve_rag_context")
     graph.add_edge("retrieve_rag_context", "synthesize_evidence")
     graph.add_edge("synthesize_evidence", "emit_signals")
-    graph.add_edge("emit_signals", "post_alerts")
+    graph.add_edge("emit_signals", "check_user_alerts")
+    graph.add_edge("check_user_alerts", "post_alerts")
     graph.add_edge("post_alerts", "post_candidates")
     graph.add_edge("post_candidates", "assemble_report_json")
     graph.add_edge("assemble_report_json", "assemble_markdown")

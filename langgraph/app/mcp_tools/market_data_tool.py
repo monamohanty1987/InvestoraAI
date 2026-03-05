@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from .base import HTTPCachedTool, MCPToolError, MCPValidationError
 
 
+
 class MarketDataInput(BaseModel):
     ticker: str = Field(min_length=1, max_length=10)
 

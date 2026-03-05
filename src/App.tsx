@@ -15,10 +15,14 @@ import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 
 // Lazily loaded (code splitting — reduces initial bundle size)
-const Index           = lazy(() => import("./pages/Index"));
-const Profile         = lazy(() => import("./pages/Profile"));
-const TermsOfService  = lazy(() => import("./pages/TermsOfService"));
-const PrivacyPolicy   = lazy(() => import("./pages/PrivacyPolicy"));
+const Index              = lazy(() => import("./pages/Index"));
+const Profile            = lazy(() => import("./pages/Profile"));
+const Watchlist          = lazy(() => import("./pages/Watchlist"));
+const StockAnalysis      = lazy(() => import("./pages/StockAnalysis"));
+const Alerts             = lazy(() => import("./pages/Alerts"));
+const Strategy           = lazy(() => import("./pages/Strategy"));
+const TermsOfService     = lazy(() => import("./pages/TermsOfService"));
+const PrivacyPolicy      = lazy(() => import("./pages/PrivacyPolicy"));
 const FinancialDisclaimer = lazy(() => import("./pages/FinancialDisclaimer"));
 
 // ── Query client with sensible defaults ──────────────────
@@ -62,10 +66,15 @@ const App = () => (
                 <Route path="/privacy"    element={<PrivacyPolicy />} />
                 <Route path="/disclaimer" element={<FinancialDisclaimer />} />
 
-                {/* Protected routes */}
+                {/* Protected routes — wrapped with Sidebar layout via ProtectedRoute */}
                 <Route element={<ProtectedRoute />}>
-                  <Route path="/"        element={<Index />} />
-                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/"                element={<Index />} />
+                  <Route path="/watchlist"       element={<Watchlist />} />
+                  <Route path="/stock"           element={<StockAnalysis />} />
+                  <Route path="/stock/:ticker"   element={<StockAnalysis />} />
+                  <Route path="/alerts"          element={<Alerts />} />
+                  <Route path="/strategy"        element={<Strategy />} />
+                  <Route path="/profile"         element={<Profile />} />
                 </Route>
 
                 {/* 404 */}
