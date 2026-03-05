@@ -4,9 +4,17 @@
 // Only { username, userId, profile } is cached in localStorage for session rehydration.
 
 export interface UserProfile {
-  riskTolerance: string;
+  // ── Existing fields ───────────────────────────────────────
+  riskTolerance: "low" | "medium" | "high";
   interests: string[];
   telegramChatId: string;
+  // ── New v2 fields (optional for backward-compat with old sessions) ──
+  displayName?: string;
+  riskTolerancePercent?: number;   // 0-100 slider value
+  defaultMarket?: "US" | "EU";
+  baseCurrency?: "USD" | "EUR" | "GBP";
+  dailyEmailDigest?: boolean;
+  alertNotifications?: boolean;
 }
 
 export interface Session {
@@ -17,6 +25,8 @@ export interface Session {
 
 export const INTEREST_OPTIONS = ["tech", "crypto", "energy", "forex", "commodities"] as const;
 export const RISK_OPTIONS = ["low", "medium", "high"] as const;
+export const MARKET_OPTIONS = ["US", "EU"] as const;
+export const CURRENCY_OPTIONS = ["USD", "EUR", "GBP"] as const;
 
 const N8N_BASE = import.meta.env.VITE_N8N_BASE_URL;
 const SESSION_KEY = "investora_session";

@@ -2,19 +2,25 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
+import time
 import threading
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Header
+from fastapi import Depends, FastAPI, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .run_weekly import run_analysis, run_weekly
+
+logger = logging.getLogger(__name__)
 
 # Load .env from langgraph/ root — no-op on Render (env vars already injected)
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -188,3 +194,356 @@ def get_ticker_history(ticker: str, weeks: int = 6):
 
     init_db()
     return load_history(ticker=ticker.upper(), lookback_weeks=min(weeks, 52))
+
+
+# ── Market Data Endpoints (Tasks 1.3–1.5) ─────────────────────────────────
+
+
+@app.get("/market/status")
+def get_market_status():
+    """Return NYSE open/closed status based on current ET time."""
+    et = ZoneInfo("America/New_York")
+    now_et = datetime.now(et)
+    weekday = now_et.weekday()  # 0=Mon … 6=Sun
+    hour, minute = now_et.hour, now_et.minute
+    is_open = (
+        weekday < 5
+        and (hour > 9 or (hour == 9 and minute >= 30))
+        and hour < 16
+    )
+    return {
+        "status": "OPEN" if is_open else "CLOSED",
+        "last_update": now_et.strftime("%H:%M ET"),
+    }
+
+
+@app.get("/market/quotes")
+def get_market_quotes(tickers: str = Query(..., description="Comma-separated tickers")):
+    """Return real-time quotes for a list of tickers (yfinance)."""
+    from .mcp_tools.yfinance_tool import YFinanceTool
+
+    ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    if not ticker_list:
+        raise HTTPException(status_code=400, detail="No tickers provided")
+    tool = YFinanceTool()
+    return tool.get_quotes(ticker_list)
+
+
+@app.get("/market/chart/{ticker}")
+def get_market_chart(ticker: str, range: str = "1M"):
+    """Return OHLCV chart history (yfinance). range: 1D | 5D | 1M | 3M | 6M | 1Y."""
+    from .mcp_tools.yfinance_tool import YFinanceTool
+
+    range_aliases = {
+        "1d": "1D",
+        "5d": "5D",
+        "1m": "1M",
+        "1mo": "1M",
+        "3m": "3M",
+        "3mo": "3M",
+        "6m": "6M",
+        "6mo": "6M",
+        "1y": "1Y",
+    }
+    normalized_range = range_aliases.get(range.lower(), range.upper())
+    valid_ranges = {"1D", "5D", "1M", "3M", "6M", "1Y"}
+    if normalized_range not in valid_ranges:
+        raise HTTPException(status_code=400, detail=f"range must be one of {valid_ranges}")
+    tool = YFinanceTool()
+    try:
+        return tool.get_chart(ticker.upper(), normalized_range)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/market/snapshot/{ticker}")
+def get_market_snapshot(ticker: str):
+    """Return merged intraday snapshot (yfinance) + key metrics (FMP)."""
+    from .mcp_tools.yfinance_tool import YFinanceTool
+    from .mcp_tools.fundamentals_tool import FundamentalsTool
+
+    ticker = ticker.upper()
+    yf_tool = YFinanceTool()
+    fmp_tool = FundamentalsTool()
+
+    try:
+        intraday = yf_tool.get_intraday_snapshot(ticker)
+    except Exception as exc:
+        intraday = {"error": str(exc)}
+
+    try:
+        fundamentals = fmp_tool.run({"ticker": ticker})
+        metrics = fundamentals.get("metrics", {})
+    except Exception:
+        metrics = {}
+
+    # Attempt to surface P/E, mkt cap, and dividend yield from FMP raw data
+    # (FundamentalsTool currently doesn't map these; expose what's available)
+    return {
+        "ticker": ticker,
+        "week_52_high": intraday.get("week_52_high"),
+        "week_52_low": intraday.get("week_52_low"),
+        "day_high": intraday.get("day_high"),
+        "day_low": intraday.get("day_low"),
+        "volume": intraday.get("volume"),
+        "avg_volume": intraday.get("avg_volume"),
+        "roe": metrics.get("roe"),
+        "operating_margin": metrics.get("operating_margin"),
+        "debt_to_equity": metrics.get("debt_to_equity"),
+        "revenue_growth": metrics.get("revenue_growth"),
+        "eps_growth": metrics.get("eps_growth"),
+    }
+
+
+@app.get("/market/news/{ticker}")
+def get_market_news(ticker: str):
+    """Return recent news headlines for a ticker (Finnhub)."""
+    from .mcp_tools.news_tool import NewsTool
+
+    try:
+        return NewsTool().run({"ticker": ticker.upper()})
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/market/search")
+def search_tickers(q: str = Query(..., min_length=1)):
+    """Autocomplete ticker/company search via yfinance."""
+    from .mcp_tools.yfinance_tool import YFinanceTool
+
+    logger.info(
+        "market_search request",
+        extra={
+            "query": q,
+            "query_len": len(q),
+        },
+    )
+
+    try:
+        payload = YFinanceTool().search_tickers(q)
+        logger.info(
+            "market_search success",
+            extra={"query": q, "result_count": len(payload) if isinstance(payload, list) else -1},
+        )
+        return [
+            {
+                "ticker": item.get("ticker", ""),
+                "name": item.get("name", ""),
+                "exchange": item.get("exchange", ""),
+            }
+            for item in payload
+            if item.get("ticker")
+        ]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("market_search unexpected_error")
+        raise HTTPException(status_code=502, detail=f"Ticker search failed: {exc}") from exc
+
+
+@app.get("/market/top-movers")
+def get_top_movers(tickers: str = Query(..., description="Comma-separated tickers")):
+    """Return top gainers and losers from the provided ticker set (yfinance)."""
+    from .mcp_tools.yfinance_tool import YFinanceTool
+
+    ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    if not ticker_list:
+        raise HTTPException(status_code=400, detail="No tickers provided")
+
+    quotes = YFinanceTool().get_quotes(ticker_list)
+    valid = [
+        {"ticker": t, **v}
+        for t, v in quotes.items()
+        if isinstance(v, dict) and v.get("change_pct") is not None
+    ]
+    sorted_by_change = sorted(valid, key=lambda x: x["change_pct"])
+    losers = sorted_by_change[:3]
+    gainers = sorted_by_change[-3:][::-1]
+    return {"gainers": gainers, "losers": losers}
+
+
+# In-memory 1-hour cache for AI view responses
+_ai_view_cache: Dict[str, tuple[str, float]] = {}
+_AI_VIEW_TTL = 3600  # seconds
+
+
+@app.get("/market/ai-view/{ticker}")
+def get_market_ai_view(ticker: str):
+    """Return a 2-3 sentence AI summary of the current situation for a ticker."""
+    import openai
+
+    ticker = ticker.upper()
+    cached = _ai_view_cache.get(ticker)
+    if cached and (time.time() - cached[1]) < _AI_VIEW_TTL:
+        return {"summary": cached[0], "generated_at": datetime.fromtimestamp(cached[1], tz=timezone.utc).isoformat()}
+
+    from .mcp_tools.yfinance_tool import YFinanceTool
+    from .mcp_tools.news_tool import NewsTool
+
+    # Gather context
+    try:
+        quotes = YFinanceTool().get_quotes([ticker])
+        quote = quotes.get(ticker, {})
+        price = quote.get("price", "N/A")
+        change_pct = quote.get("change_pct", "N/A")
+    except Exception:
+        price, change_pct = "N/A", "N/A"
+
+    try:
+        news_data = NewsTool().run({"ticker": ticker})
+        headlines = [a["headline"] for a in news_data.get("articles", [])[:3]]
+    except Exception:
+        headlines = []
+
+    headline_block = "\n".join(f"- {h}" for h in headlines) if headlines else "No recent news."
+    prompt = (
+        f"In 2-3 sentences, summarize the current investment situation for {ticker}. "
+        f"Current price: {price}, daily change: {change_pct}%. "
+        f"Recent headlines:\n{headline_block}\n"
+        "Be factual and concise. Do not give explicit buy/sell advice."
+    )
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
+
+    client = openai.OpenAI(api_key=api_key)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=150,
+        temperature=0.3,
+    )
+    summary = response.choices[0].message.content.strip()
+
+    ts = time.time()
+    _ai_view_cache[ticker] = (summary, ts)
+    return {"summary": summary, "generated_at": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()}
+
+
+# ── Watchlist Endpoints (Task 2.3) ────────────────────────────────────────
+
+
+class WatchlistRequest(BaseModel):
+    tickers: List[str]
+
+
+@app.get("/user/{user_id}/watchlist")
+def get_user_watchlist(user_id: str):
+    from .event_store import init_db, get_watchlist
+
+    init_db()
+    return {"user_id": user_id, "tickers": get_watchlist(user_id)}
+
+
+@app.put("/user/{user_id}/watchlist")
+def put_user_watchlist(user_id: str, req: WatchlistRequest):
+    from .event_store import init_db, set_watchlist, get_watchlist
+
+    init_db()
+    set_watchlist(user_id, req.tickers)
+    return {"user_id": user_id, "tickers": get_watchlist(user_id)}
+
+
+# ── Alert Endpoints (Task 2.4) ────────────────────────────────────────────
+
+
+class CreateAlertRequest(BaseModel):
+    ticker: str
+    condition: str   # 'price_above' | 'price_below' | 'daily_move'
+    value: float
+
+
+class UpdateAlertRequest(BaseModel):
+    status: Optional[str] = None      # 'active' | 'disabled' (accept 'paused' alias)
+    ticker: Optional[str] = None
+    condition: Optional[str] = None   # 'price_above' | 'price_below' | 'daily_move'
+    value: Optional[float] = None
+
+
+@app.get("/user/{user_id}/alerts")
+def get_user_alerts(user_id: str):
+    from .event_store import init_db, get_alerts
+
+    init_db()
+    return get_alerts(user_id)
+
+
+@app.post("/user/{user_id}/alerts", status_code=201)
+def create_user_alert(user_id: str, req: CreateAlertRequest):
+    from .event_store import init_db, create_alert
+
+    # Accept legacy condition aliases from older frontends and normalize.
+    condition_aliases = {
+        "above": "price_above",
+        "below": "price_below",
+        "change_pct_up": "daily_move",
+        "change_pct_down": "daily_move",
+    }
+    normalized_condition = condition_aliases.get(req.condition, req.condition)
+    valid_conditions = {"price_above", "price_below", "daily_move"}
+    if normalized_condition not in valid_conditions:
+        raise HTTPException(status_code=400, detail=f"condition must be one of {valid_conditions}")
+    if req.value <= 0:
+        raise HTTPException(status_code=400, detail="value must be positive")
+
+    init_db()
+    return create_alert(user_id, req.ticker, normalized_condition, req.value)
+
+
+@app.patch("/user/{user_id}/alerts/{alert_id}")
+def patch_user_alert(user_id: str, alert_id: str, req: UpdateAlertRequest):
+    from .event_store import init_db, update_alert
+
+    normalized_status: Optional[str] = None
+    if req.status is not None:
+        status_aliases = {"paused": "disabled"}
+        normalized_status = status_aliases.get(req.status, req.status)
+        valid_statuses = {"active", "disabled"}
+        if normalized_status not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"status must be one of {valid_statuses}")
+
+    normalized_condition: Optional[str] = None
+    if req.condition is not None:
+        condition_aliases = {
+            "above": "price_above",
+            "below": "price_below",
+            "change_pct_up": "daily_move",
+            "change_pct_down": "daily_move",
+        }
+        normalized_condition = condition_aliases.get(req.condition, req.condition)
+        valid_conditions = {"price_above", "price_below", "daily_move"}
+        if normalized_condition not in valid_conditions:
+            raise HTTPException(status_code=400, detail=f"condition must be one of {valid_conditions}")
+
+    if req.value is not None and req.value <= 0:
+        raise HTTPException(status_code=400, detail="value must be positive")
+
+    if (
+        normalized_status is None
+        and req.ticker is None
+        and normalized_condition is None
+        and req.value is None
+    ):
+        raise HTTPException(status_code=400, detail="No update fields provided")
+
+    init_db()
+    updated = update_alert(
+        alert_id,
+        status=normalized_status,
+        ticker=req.ticker,
+        condition=normalized_condition,
+        value=req.value,
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return updated
+
+
+@app.delete("/user/{user_id}/alerts/{alert_id}", status_code=204)
+def delete_user_alert(user_id: str, alert_id: str):
+    from .event_store import init_db, delete_alert
+
+    init_db()
+    if not delete_alert(alert_id):
+        raise HTTPException(status_code=404, detail="Alert not found")
