@@ -28,6 +28,8 @@ from .alert_checker import check_user_alerts
 from .alert_client import post_alerts_to_n8n, post_user_alerts_to_n8n
 from .n8n_client import post_candidates_to_n8n, post_report_to_n8n
 from .budget_manager import budget_manager
+from .event_store import save_bundle
+from .personalization import build_user_bundle
 from .profile_store import load_all_profiles
 from .reporting import DEFAULT_COMPANIES, build_markdown, build_report, persist_report
 from .scoring import compute_all_scores, momentum_weekly_return
@@ -143,6 +145,7 @@ def init_state(state: GraphState) -> GraphState:
         "per_ticker_synthesis": {},
         "signal_events": [],
         "anomaly_signals": [],
+        "personalized_bundles": {},
         "triggered_user_alerts": [],
         "report_json": None,
         "report_markdown": "",
@@ -947,6 +950,41 @@ def emit_signals_node(state: GraphState) -> GraphState:
     return state
 
 
+def personalize_signals_node(state: GraphState) -> GraphState:
+    bundles: Dict[str, Dict[str, Any]] = {}
+    users = state.get("user_profiles", [])
+    if not users:
+        state["personalized_bundles"] = {}
+        return state
+
+    for profile in users:
+        user_id = profile.get("user_id", "")
+        if not user_id:
+            continue
+        try:
+            bundle = build_user_bundle(
+                user_profile=profile,
+                signal_events=state.get("signal_events", []),
+                scores=state.get("scores", {}),
+                run_id=state["run_id"],
+                run_date=state["run_date"],
+                per_ticker_data=state.get("per_ticker_data", {}),
+            )
+            save_bundle(bundle)
+            bundles[user_id] = bundle
+        except Exception as exc:  # noqa: BLE001
+            # Per-user failure must not fail the full node.
+            state["errors"].append({"ticker": user_id, "tool": "personalize_signals", "error": str(exc)})
+            logger.warning("personalize_signals_node: user %s failed: %s", user_id, exc)
+
+    state["personalized_bundles"] = bundles
+    logger.info(
+        "personalize_signals_node",
+        extra={"run_id": state["run_id"], "user_count": len(users), "saved_bundles": len(bundles)},
+    )
+    return state
+
+
 def check_user_alerts_node(state: GraphState) -> GraphState:
     try:
         triggered = check_user_alerts()
@@ -1103,6 +1141,7 @@ def build_graph():
     graph.add_node("retrieve_rag_context", retrieve_rag_context_node)
     graph.add_node("synthesize_evidence", synthesize_evidence_node)
     graph.add_node("emit_signals", emit_signals_node)
+    graph.add_node("personalize_signals", personalize_signals_node)
     graph.add_node("check_user_alerts", check_user_alerts_node)
     graph.add_node("post_alerts", post_alerts_node)
     graph.add_node("post_candidates", post_candidates_node)
@@ -1130,7 +1169,8 @@ def build_graph():
     graph.add_edge("detect_anomalies", "retrieve_rag_context")
     graph.add_edge("retrieve_rag_context", "synthesize_evidence")
     graph.add_edge("synthesize_evidence", "emit_signals")
-    graph.add_edge("emit_signals", "check_user_alerts")
+    graph.add_edge("emit_signals", "personalize_signals")
+    graph.add_edge("personalize_signals", "check_user_alerts")
     graph.add_edge("check_user_alerts", "post_alerts")
     graph.add_edge("post_alerts", "post_candidates")
     graph.add_edge("post_candidates", "assemble_report_json")

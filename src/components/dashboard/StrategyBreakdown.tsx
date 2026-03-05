@@ -23,7 +23,7 @@ interface StrategyBreakdownProps {
   };
 }
 
-// Rating → bar fill colour using inline HSL values (Tailwind classes don't apply inside SVG)
+// Rating -> bar fill colour using inline HSL values (Tailwind classes don't apply inside SVG)
 const qualityFill: Record<string, string> = {
   Strong: "hsl(160, 100%, 50%)",
   Good: "hsl(190, 100%, 50%)",
@@ -85,11 +85,13 @@ function MiniBarChart({
           </Tooltip>
         </TooltipProvider>
       </div>
-      <ResponsiveContainer width="100%" height={data.length * 36}>
+      <ResponsiveContainer width="100%" height={data.length * 30}>
         <BarChart
           data={data}
           layout="vertical"
           margin={{ top: 0, right: 48, left: 0, bottom: 0 }}
+          barSize={7}
+          barCategoryGap="22%"
         >
           <XAxis
             type="number"
@@ -113,7 +115,7 @@ function MiniBarChart({
               "Score",
             ]}
           />
-          <Bar dataKey="score" radius={[0, 3, 3, 0]}>
+          <Bar dataKey="score" radius={[0, 2, 2, 0]}>
             {data.map((entry) => (
               <Cell
                 key={entry.company}

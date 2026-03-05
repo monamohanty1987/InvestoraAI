@@ -231,6 +231,8 @@ export function useStreamRun() {
               setNodeProgress((prev) => prev.map((n) => ({ ...n, status: "completed" })));
               queryClient.invalidateQueries({ queryKey: ["latest-report"] });
               queryClient.invalidateQueries({ queryKey: ["run-history"] });
+              queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+              queryClient.invalidateQueries({ queryKey: ["personalized-signals"] });
             } else if (event.type === "error") {
               setStreamError(event.message ?? "Unknown error");
               setNodeProgress((prev) =>

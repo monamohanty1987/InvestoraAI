@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Dict, List, Literal, Optional, TypedDict
 
-from .models import SignalEvent, SynthesisResult, UserProfileContext
+from .models import SignalEvent, SynthesisResult, UserProfileContext, UserReportBundle
 
 
 class CompanyInfo(TypedDict):
@@ -96,6 +96,7 @@ class GraphState(TypedDict):
     per_ticker_synthesis: Dict[str, Any]  # {ticker: SynthesisResult}; populated by synthesize_evidence_node
     signal_events: List[SignalEvent]      # populated by emit_signals_node after scoring
     anomaly_signals: List[SignalEvent]    # populated by detect_anomalies_node; subset of signal_events
+    personalized_bundles: Dict[str, UserReportBundle]  # populated by personalize_signals_node
     triggered_user_alerts: List[Dict[str, Any]]  # user-defined price alerts that fired
     report_json: Optional[ReportPayload]
     report_markdown: str

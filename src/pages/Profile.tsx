@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { MarketStatusBar } from "@/components/MarketStatusBar";
+import { TickerSearch } from "@/components/TickerSearch";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -112,6 +113,7 @@ export default function Profile() {
   // ── v3 Portfolio Positions state ───────────────────────────────────────
   const [positions, setPositions] = useState<Position[]>(p?.positions ?? []);
   const [newTicker, setNewTicker] = useState("");
+  const [newTickerName, setNewTickerName] = useState("");
   const [newShares, setNewShares] = useState("");
 
   // ── Toggle helpers ─────────────────────────────────────────────────────
@@ -147,6 +149,7 @@ export default function Profile() {
       return [...prev, { ticker, shares }];
     });
     setNewTicker("");
+    setNewTickerName("");
     setNewShares("");
   };
 
@@ -463,34 +466,47 @@ export default function Profile() {
             )}
 
             {/* Add position inline form */}
-            <div className="flex gap-2 pt-1">
-              <Input
-                value={newTicker}
-                onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
-                placeholder="TICKER"
-                className="font-mono w-28 uppercase"
-                onKeyDown={(e) => e.key === "Enter" && addPosition()}
-              />
-              <Input
-                type="number"
-                value={newShares}
-                onChange={(e) => setNewShares(e.target.value)}
-                placeholder="Shares"
-                className="font-mono w-28"
-                min={0}
-                step="any"
-                onKeyDown={(e) => e.key === "Enter" && addPosition()}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addPosition}
-                className="gap-1 shrink-0"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add
-              </Button>
+            <div className="space-y-1.5 pt-1">
+              <div className="flex gap-2 items-end flex-wrap">
+                <div className="min-w-[220px] flex-1">
+                  <TickerSearch
+                    placeholder="Search ticker or company…"
+                    existing={positions.map((pos) => pos.ticker.toUpperCase())}
+                    clearOnSelect={false}
+                    onSelect={(ticker, name) => {
+                      setNewTicker(ticker.toUpperCase());
+                      setNewTickerName(name);
+                    }}
+                  />
+                </div>
+                <Input
+                  type="number"
+                  value={newShares}
+                  onChange={(e) => setNewShares(e.target.value)}
+                  placeholder="Shares"
+                  className="font-mono w-28"
+                  min={0}
+                  step="any"
+                  onKeyDown={(e) => e.key === "Enter" && addPosition()}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addPosition}
+                  disabled={!newTicker.trim() || !newShares.trim() || Number(newShares) <= 0}
+                  className="gap-1 shrink-0"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add
+                </Button>
+              </div>
+              {newTicker ? (
+                <p className="text-xs text-primary font-mono">
+                  Selected: {newTicker.toUpperCase()}
+                  {newTickerName ? ` - ${newTickerName}` : ""}
+                </p>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -519,9 +535,9 @@ export default function Profile() {
             <div className="space-y-3 pt-1 border-t border-border/50">
               <div className="flex items-center justify-between pt-3">
                 <div className="space-y-0.5">
-                  <p className="text-sm text-foreground">Daily Email Digest</p>
+                  <p className="text-sm text-foreground">Weekly Email Digest</p>
                   <p className="text-xs text-muted-foreground">
-                    Receive a daily summary of your portfolio analysis
+                    Receive a weekly summary of your portfolio analysis
                   </p>
                 </div>
                 <Switch
