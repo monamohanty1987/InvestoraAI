@@ -17,7 +17,11 @@ else:
     from .graph import build_graph
 
 
-def run_weekly(run_date: str | None = None, skip_post: bool = False) -> Dict[str, Any]:
+def run_weekly(
+    run_date: str | None = None,
+    skip_synthesis: bool = True,
+    skip_post: bool = False,
+) -> Dict[str, Any]:
     load_dotenv()
     if run_date:
         os.environ["RUN_DATE"] = run_date
@@ -25,7 +29,11 @@ def run_weekly(run_date: str | None = None, skip_post: bool = False) -> Dict[str
     recursion_limit = int(os.environ.get("GRAPH_RECURSION_LIMIT", "120"))
 
     app = build_graph()
-    result = app.invoke({}, config={"recursion_limit": recursion_limit})
+    initial: Dict[str, Any] = {
+        "skip_synthesis": skip_synthesis,
+        "scope": "fast" if skip_synthesis else "full",
+    }
+    result = app.invoke(initial, config={"recursion_limit": recursion_limit})
     return {
         "report_json": result.get("report_json"),
         "report_markdown": result.get("report_markdown", ""),
@@ -37,7 +45,7 @@ def run_weekly(run_date: str | None = None, skip_post: bool = False) -> Dict[str
 
 def run_analysis(
     tickers: Optional[List[str]] = None,
-    skip_synthesis: bool = False,
+    skip_synthesis: bool = True,
     skip_post: bool = False,
     run_id: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -74,7 +82,7 @@ def main() -> None:
     parser.add_argument("--no-post", action="store_true", help="Skip posting payload to n8n webhook")
     args = parser.parse_args()
 
-    result = run_weekly(run_date=args.run_date, skip_post=args.no_post)
+    result = run_weekly(run_date=args.run_date, skip_synthesis=True, skip_post=args.no_post)
     print(json.dumps(result, ensure_ascii=True, indent=2))
 
 

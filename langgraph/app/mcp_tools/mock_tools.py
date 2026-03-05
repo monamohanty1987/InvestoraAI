@@ -20,7 +20,10 @@ scores produce a meaningful ranking:
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any, Dict, List
 
 from .base import MCPToolError
@@ -152,40 +155,155 @@ _MOCK_NEWS: Dict[str, List[Dict[str, Any]]] = {
     ],
 }
 
+# ── Universe-backed synthetic data helpers (for 100-ticker mock mode) ─────────
+
+_UNIVERSE_PATH = Path(__file__).resolve().parents[2] / "data" / "universe_mock.json"
+
+
+def _load_universe_index() -> Dict[str, Dict[str, Any]]:
+    try:
+        with _UNIVERSE_PATH.open("r", encoding="utf-8") as f:
+            payload = json.load(f)
+        out: Dict[str, Dict[str, Any]] = {}
+        for row in payload.get("tickers", []):
+            ticker = str(row.get("ticker", "")).upper()
+            if ticker:
+                out[ticker] = row
+        return out
+    except Exception:
+        return {}
+
+
+_UNIVERSE_INDEX: Dict[str, Dict[str, Any]] = _load_universe_index()
+
+
+def _stable_unit(ticker: str) -> float:
+    """Deterministic pseudo-random float in [0, 1] based on ticker."""
+    h = hashlib.sha256(ticker.encode("utf-8")).hexdigest()
+    return int(h[:8], 16) / 0xFFFFFFFF
+
+
+def _series_from_momentum_score(ticker: str, momentum_score: float) -> List[float]:
+    """
+    Build 7 closes (most-recent-first) that approximately encode a weekly return
+    implied by momentum_score on a 0-10 scale.
+    """
+    # Map score 0..10 -> roughly -8%..+8% weekly move
+    weekly_return_pct = (momentum_score - 5.0) * 1.6
+    base_price = 40.0 + _stable_unit(ticker) * 460.0
+    denom = 1.0 + (weekly_return_pct / 100.0)
+    if abs(denom) < 1e-6:
+        denom = 1.0
+    price4 = base_price / denom
+    step = (base_price - price4) / 4.0
+    # slight deterministic tail variation for days 5/6
+    tail = (0.2 + _stable_unit(f"{ticker}-tail") * 0.8) * (1 if step >= 0 else -1)
+    closes = [
+        round(base_price, 2),
+        round(base_price - step, 2),
+        round(base_price - 2 * step, 2),
+        round(base_price - 3 * step, 2),
+        round(price4, 2),
+        round(price4 - tail, 2),
+        round(price4 - 2 * tail, 2),
+    ]
+    # Guard against non-positive prices from edge math
+    return [max(1.0, c) for c in closes]
+
+
+def _fundamentals_from_quality_score(quality_score: float) -> Dict[str, Any]:
+    """
+    Map quality score (0-10) to plausible ratio metrics expected by scoring.py.
+    """
+    q = max(0.0, min(10.0, quality_score))
+    qn = q / 10.0
+    return {
+        "roe": round(0.05 + 0.55 * qn, 3),               # 5%..60%
+        "operating_margin": round(0.04 + 0.46 * qn, 3),  # 4%..50%
+        "debt_to_equity": round(2.5 - 2.2 * qn, 3),      # 2.5..0.3 (lower is better)
+        "revenue_growth": round(-0.02 + 0.30 * qn, 3),   # -2%..28%
+        "eps_growth": round(-0.05 + 0.40 * qn, 3),       # -5%..35%
+    }
+
+
+def _synthetic_news(universe_row: Dict[str, Any], ticker: str) -> List[Dict[str, Any]]:
+    name = str(universe_row.get("name", ticker))
+    sector = str(universe_row.get("sector", "Market"))
+    themes = universe_row.get("themes") or []
+    theme_text = str(themes[0]) if themes else "market trends"
+    # Approximate Unix seconds around late Feb/early Mar 2026
+    return [
+        {
+            "headline": f"{name} ({ticker}) sees activity in {theme_text}",
+            "summary": f"{sector} name monitored for momentum and quality shifts in mock mode.",
+            "source": "MockWire",
+            "datetime": 1772400000,
+            "url": "",
+        },
+        {
+            "headline": f"{ticker} sector context update: {sector}",
+            "summary": "Synthetic headline generated from universe metadata.",
+            "source": "MockWire",
+            "datetime": 1772313600,
+            "url": "",
+        },
+    ]
+
 
 # ── Mock tool classes ─────────────────────────────────────────────────────────
 
 class MockMarketDataTool:
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         ticker = str(payload.get("ticker", "")).upper()
-        if ticker not in _MARKET_CLOSES:
-            raise MCPToolError(f"MockMarketDataTool: no mock data for ticker '{ticker}'")
+        closes = _MARKET_CLOSES.get(ticker)
+        if closes is None:
+            row = _UNIVERSE_INDEX.get(ticker)
+            if row is None:
+                raise MCPToolError(f"MockMarketDataTool: no mock data for ticker '{ticker}'")
+            momentum_score = float(row.get("mock_momentum_score", 5.0))
+            closes = _series_from_momentum_score(ticker, momentum_score)
         return {
             "ticker": ticker,
             "source": "Mock (Marketstack)",
-            "prices": _price_series(_MARKET_CLOSES[ticker]),
+            "prices": _price_series(closes),
         }
+
+    def run_many(self, tickers: List[str]) -> Dict[str, Dict[str, Any]]:
+        out: Dict[str, Dict[str, Any]] = {}
+        for ticker in tickers:
+            payload = self.run({"ticker": ticker})
+            out[payload["ticker"]] = payload
+        return out
 
 
 class MockFundamentalsTool:
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         ticker = str(payload.get("ticker", "")).upper()
-        if ticker not in _MOCK_FUNDAMENTALS:
-            raise MCPToolError(f"MockFundamentalsTool: no mock data for ticker '{ticker}'")
+        metrics = _MOCK_FUNDAMENTALS.get(ticker)
+        if metrics is None:
+            row = _UNIVERSE_INDEX.get(ticker)
+            if row is None:
+                raise MCPToolError(f"MockFundamentalsTool: no mock data for ticker '{ticker}'")
+            quality_score = float(row.get("mock_quality_score", 5.0))
+            metrics = _fundamentals_from_quality_score(quality_score)
         return {
             "ticker": ticker,
             "source": "Mock (Financial Modeling Prep)",
-            "metrics": _MOCK_FUNDAMENTALS[ticker],
+            "metrics": metrics,
         }
 
 
 class MockNewsTool:
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         ticker = str(payload.get("ticker", "")).upper()
+        articles = _MOCK_NEWS.get(ticker)
+        if articles is None:
+            row = _UNIVERSE_INDEX.get(ticker)
+            articles = _synthetic_news(row, ticker) if row else []
         return {
             "ticker": ticker,
             "source": "Mock (Finnhub)",
-            "articles": _MOCK_NEWS.get(ticker, []),
+            "articles": articles,
         }
 
 

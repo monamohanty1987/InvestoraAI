@@ -36,7 +36,7 @@ class BudgetManager:
         return int(os.environ.get("MAX_API_CALLS_PER_RUN", "20"))
 
     def _is_mock(self) -> bool:
-        return os.environ.get("USE_MOCK_DATA", "").lower() == "true"
+        return os.environ.get("USE_MOCK_DATA", "true").lower() == "true"
 
     def can_call(self, action: str, run_id: str) -> bool:
         """Return True if budget allows this call. USE_MOCK_DATA=true always returns True."""

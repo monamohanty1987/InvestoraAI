@@ -180,7 +180,7 @@ export function useStreamRun() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            skip_synthesis: opts.skipSynthesis ?? false,
+            skip_synthesis: opts.skipSynthesis ?? true,
             tickers: opts.tickers ?? null,
             no_post: false,
           }),

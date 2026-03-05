@@ -21,14 +21,39 @@ class MarketDataTool(HTTPCachedTool):
 
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         model = MarketDataInput(**payload)
-        cache_payload = {"tool": "market", "provider": "marketstack", "ticker": model.ticker.upper()}
-        cached = self._read_cache("market", cache_payload)
-        if cached:
-            return cached
+        results = self.run_many([model.ticker.upper()])
+        ticker = model.ticker.upper()
+        if ticker not in results:
+            raise MCPToolError(f"MarketDataTool: no data returned for {ticker}")
+        return results[ticker]
+
+    def run_many(self, tickers: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Batch market fetch for multiple tickers using one Marketstack request when possible.
+        Returns {ticker: normalized_payload}.
+        """
+        normalized_tickers = sorted({str(t).upper() for t in tickers if str(t).strip()})
+        if not normalized_tickers:
+            return {}
+
+        out: Dict[str, Dict[str, Any]] = {}
+        misses: List[str] = []
+
+        # First satisfy from per-ticker cache
+        for ticker in normalized_tickers:
+            cache_payload = {"tool": "market", "provider": "marketstack", "ticker": ticker}
+            cached = self._read_cache("market", cache_payload)
+            if cached:
+                out[ticker] = cached
+            else:
+                misses.append(ticker)
+
+        if not misses:
+            return out
 
         params = {
             "access_key": self.api_key,
-            "symbols": model.ticker.upper(),
+            "symbols": ",".join(misses),
             "limit": 30,
             "sort": "DESC",
         }
@@ -37,28 +62,36 @@ class MarketDataTool(HTTPCachedTool):
             message = str(data["error"].get("message", "Unknown Marketstack API error"))
             message_l = message.lower()
             if "rate limit" in message_l or "request limit" in message_l:
-                raise MCPToolError(
-                    f"Marketstack rate limit reached for key; cannot fetch {model.ticker} until reset."
-                )
-            raise MCPToolError(f"Marketstack API error for {model.ticker}: {message}")
+                raise MCPToolError("Marketstack rate limit reached for batch request.")
+            raise MCPToolError(f"Marketstack API batch error: {message}")
 
         series = data.get("data")
         if not isinstance(series, list) or not series:
-            raise MCPToolError(f"Marketstack invalid payload for {model.ticker}: {str(data)[:200]}")
+            raise MCPToolError(f"Marketstack invalid batch payload: {str(data)[:200]}")
 
-        rows: List[Dict[str, Any]] = []
+        rows_by_ticker: Dict[str, List[Dict[str, Any]]] = {t: [] for t in misses}
         for p in series:
             try:
+                symbol = str(p["symbol"]).upper()
+                if symbol not in rows_by_ticker:
+                    continue
                 raw_date = str(p["date"])
-                rows.append({"date": raw_date[:10], "close": float(p["close"])})
+                rows_by_ticker[symbol].append({"date": raw_date[:10], "close": float(p["close"])})
             except (KeyError, ValueError, TypeError) as exc:
-                raise MCPValidationError(f"Bad market row for {model.ticker}: {exc}") from exc
+                raise MCPValidationError(f"Bad market row in batch payload: {exc}") from exc
 
-        rows.sort(key=lambda x: x["date"], reverse=True)
-        normalized = {
-            "ticker": model.ticker.upper(),
-            "source": "Marketstack",
-            "prices": rows[:7],
-        }
-        self._write_cache("market", cache_payload, normalized)
-        return normalized
+        for ticker in misses:
+            rows = rows_by_ticker.get(ticker, [])
+            rows.sort(key=lambda x: x["date"], reverse=True)
+            if not rows:
+                continue
+            normalized = {
+                "ticker": ticker,
+                "source": "Marketstack",
+                "prices": rows[:7],
+            }
+            cache_payload = {"tool": "market", "provider": "marketstack", "ticker": ticker}
+            self._write_cache("market", cache_payload, normalized)
+            out[ticker] = normalized
+
+        return out

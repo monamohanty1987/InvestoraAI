@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import os
 
 from .base import MCPToolError, MCPRetryableError, MCPValidationError
@@ -24,30 +25,50 @@ __all__ = [
 
 
 def _use_mock() -> bool:
-    return os.environ.get("USE_MOCK_DATA", "").lower() == "true"
+    return os.environ.get("USE_MOCK_DATA", "true").lower() == "true"
 
 
-def get_market_tool():
-    if _use_mock():
+@lru_cache(maxsize=2)
+def _market_tool_cached(use_mock: bool):
+    if use_mock:
         from .mock_tools import MockMarketDataTool
         return MockMarketDataTool()
     return MarketDataTool()
 
 
-def get_fundamentals_tool():
-    if _use_mock():
+@lru_cache(maxsize=2)
+def _fundamentals_tool_cached(use_mock: bool):
+    if use_mock:
         from .mock_tools import MockFundamentalsTool
         return MockFundamentalsTool()
     return FundamentalsTool()
 
 
-def get_news_tool():
-    if _use_mock():
+@lru_cache(maxsize=2)
+def _news_tool_cached(use_mock: bool):
+    if use_mock:
         from .mock_tools import MockNewsTool
         return MockNewsTool()
     return NewsTool()
 
 
+@lru_cache(maxsize=1)
+def _rag_tool_cached():
+    return RAGRetrievalTool()
+
+
+def get_market_tool():
+    return _market_tool_cached(_use_mock())
+
+
+def get_fundamentals_tool():
+    return _fundamentals_tool_cached(_use_mock())
+
+
+def get_news_tool():
+    return _news_tool_cached(_use_mock())
+
+
 def get_rag_tool():
     # RAG always uses live Pinecone — USE_MOCK_DATA does not affect retrieval.
-    return RAGRetrievalTool()
+    return _rag_tool_cached()

@@ -79,18 +79,23 @@ _active_streams: Dict[str, asyncio.Queue] = {}
 
 class RunWeeklyRequest(BaseModel):
     run_date: Optional[str] = None
+    skip_synthesis: bool = True
     no_post: bool = False
 
 
 class RunAnalysisRequest(BaseModel):
     tickers: Optional[List[str]] = None
-    skip_synthesis: bool = False
+    skip_synthesis: bool = True
     no_post: bool = False
 
 
 @app.post("/run-weekly", dependencies=[Depends(_verify_cron_secret)])
 def run_weekly_endpoint(req: RunWeeklyRequest):
-    return run_weekly(run_date=req.run_date, skip_post=req.no_post)
+    return run_weekly(
+        run_date=req.run_date,
+        skip_synthesis=req.skip_synthesis,
+        skip_post=req.no_post,
+    )
 
 
 @app.post("/run-analysis", dependencies=[Depends(_verify_cron_secret)])

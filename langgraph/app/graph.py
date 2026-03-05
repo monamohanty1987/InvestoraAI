@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
@@ -17,6 +18,11 @@ from .mcp_tools import (
     get_market_tool,
     get_news_tool,
     get_rag_tool,
+)
+from .mcp_tools.anomaly_detector import (
+    build_anomaly_signal_event,
+    detect_score_delta,
+    detect_volume_spike,
 )
 from .alert_checker import check_user_alerts
 from .alert_client import post_alerts_to_n8n, post_user_alerts_to_n8n
@@ -44,25 +50,36 @@ DEFAULT_UNIVERSE = [
 
 # Path to the 100-ticker mock universe (relative to this file's parent package)
 _UNIVERSE_PATH = Path(__file__).parent.parent / "data" / "universe_mock.json"
+_REPORT_DIR = Path(__file__).resolve().parent.parent / "data" / "reports"
 
 
 def _load_universe_tickers() -> List[str]:
-    """Return the ticker list to process, in priority order:
-    1. universe_mock.json (if file exists) — 100 S&P 100 tickers
-    2. STOCK_UNIVERSE env var (comma-separated, capped at 50)
-    3. DEFAULT_UNIVERSE constant (10 tickers)
-    Caller-seeded tickers from init_state() take priority over all of the above.
+    """Return ticker universe based on USE_MOCK_DATA.
+
+    - USE_MOCK_DATA=true  -> universe_mock.json (fallback: env/default universe)
+    - USE_MOCK_DATA=false -> STOCK_UNIVERSE env or DEFAULT_UNIVERSE
+
+    Caller-seeded tickers from init_state() still take priority over this loader.
     """
-    if _UNIVERSE_PATH.exists():
+    use_mock_data = os.environ.get("USE_MOCK_DATA", "true").lower() == "true"
+    if use_mock_data and _UNIVERSE_PATH.exists():
         try:
             with _UNIVERSE_PATH.open() as f:
                 data = json.load(f)
             tickers = [t["ticker"] for t in data.get("tickers", [])]
             if tickers:
-                logger.debug("_load_universe_tickers: loaded %d tickers from universe_mock.json", len(tickers))
+                logger.debug(
+                    "_load_universe_tickers: USE_MOCK_DATA=true loaded %d tickers from universe_mock.json",
+                    len(tickers),
+                )
                 return tickers
         except Exception as exc:  # noqa: BLE001
             logger.warning("_load_universe_tickers: failed to load universe_mock.json: %s", exc)
+
+    if use_mock_data and not _UNIVERSE_PATH.exists():
+        logger.warning(
+            "_load_universe_tickers: USE_MOCK_DATA=true but universe_mock.json is missing; falling back to STOCK_UNIVERSE/DEFAULT_UNIVERSE"
+        )
     return _parse_universe()
 
 
@@ -125,6 +142,7 @@ def init_state(state: GraphState) -> GraphState:
         "rag_stats": {"retrieved_items": 0, "queries_run": 0},
         "per_ticker_synthesis": {},
         "signal_events": [],
+        "anomaly_signals": [],
         "triggered_user_alerts": [],
         "report_json": None,
         "report_markdown": "",
@@ -251,23 +269,41 @@ def _openai_react_plan(state: GraphState) -> Tuple[Optional[str], str, str]:
 
 
 def plan_next_action(state: GraphState) -> GraphState:
-    try:
-        selected_ticker, selected_action, reason = _openai_react_plan(state)
-    except Exception as exc:  # noqa: BLE001
-        state["errors"].append({"ticker": "*", "tool": "planner", "error": str(exc)})
-        pending = _pending_action_candidates(state)
+    pending = _pending_action_candidates(state)
+
+    # In mock mode, avoid LLM planning entirely to guarantee zero external AI calls
+    # and keep graph traversal bounded for large mock universes.
+    use_mock_data = os.environ.get("USE_MOCK_DATA", "true").lower() == "true"
+    if use_mock_data:
         if pending:
             selected_ticker, selected_action, reason = (
                 pending[0][0],
                 pending[0][1],
-                "Planner failed; falling back to first pending action.",
+                "Deterministic planner in mock mode: selecting first pending action.",
             )
         else:
             selected_ticker, selected_action, reason = (
                 None,
                 "compute",
-                "Planner failed; proceeding to compute with whatever data is available.",
+                "All required tool data collected; proceed to scoring.",
             )
+    else:
+        try:
+            selected_ticker, selected_action, reason = _openai_react_plan(state)
+        except Exception as exc:  # noqa: BLE001
+            state["errors"].append({"ticker": "*", "tool": "planner", "error": str(exc)})
+            if pending:
+                selected_ticker, selected_action, reason = (
+                    pending[0][0],
+                    pending[0][1],
+                    "Planner failed; falling back to first pending action.",
+                )
+            else:
+                selected_ticker, selected_action, reason = (
+                    None,
+                    "compute",
+                    "Planner failed; proceeding to compute with whatever data is available.",
+                )
     done_collection = selected_action == "compute"
 
     logger.info(
@@ -328,71 +364,226 @@ def _run_news_tool(state: GraphState, ticker: str) -> None:
 
 
 def execute_tool_action(state: GraphState) -> GraphState:
-    ticker = state["current_ticker"]
-    if not ticker:
-        return state
     action = state.get("action")
-
-    # Budget guard: skip the tool call if this run has exhausted its API allowance.
-    # Bypassed automatically when USE_MOCK_DATA=true (budget_manager.can_call returns True).
-    run_id = state.get("run_id", "unknown")
-    if not budget_manager.can_call(action, run_id):
-        logger.warning(
-            "budget_manager: run %s exhausted API budget; skipping %s/%s",
-            run_id, ticker, action,
-        )
-        if ticker not in state["failed_tickers"]:
-            state["failed_tickers"].append(ticker)
-        state["react_history"].append(
-            {
-                "phase": "observation",
-                "ticker": ticker,
-                "action": action or "unknown",
-                "message": "Skipped: API budget exhausted for this run.",
-            }
-        )
+    if action not in {"market", "fundamentals", "news"}:
         return state
 
-    budget_manager.record_call(action, run_id)
-    try:
-        if action == "market":
-            _run_market_tool(state, ticker)
-        elif action == "fundamentals":
-            _run_fundamentals_tool(state, ticker)
-        elif action == "news":
-            _run_news_tool(state, ticker)
-        else:
-            raise ValueError(f"Unsupported tool action: {action}")
-    except MCPToolError as exc:
-        state["errors"].append({"ticker": ticker, "tool": action or "unknown", "error": str(exc)})
-        if action == "market" and "rate limit" in str(exc).lower():
-            # Stop further market fetch attempts this run; they will fail for all remaining tickers.
-            for t in state["tickers"]:
-                data = state["per_ticker_data"].get(t, {})
-                if "market" not in data and t not in state["failed_tickers"]:
-                    state["failed_tickers"].append(t)
-        if ticker not in state["failed_tickers"]:
-            state["failed_tickers"].append(ticker)
-        state["react_history"].append(
-            {
-                "phase": "observation",
-                "ticker": ticker,
-                "action": action or "unknown",
-                "message": f"Tool failed: {exc}",
-            }
-        )
-    except Exception as exc:  # noqa: BLE001
-        state["errors"].append({"ticker": ticker, "tool": action or "unknown", "error": str(exc)})
-        if ticker not in state["failed_tickers"]:
-            state["failed_tickers"].append(ticker)
-        state["react_history"].append(
-            {
-                "phase": "observation",
-                "ticker": ticker,
-                "action": action or "unknown",
-                "message": f"Execution failed: {exc}",
-            }
-        )
+    run_id = state.get("run_id", "unknown")
+    failed_set = set(state["failed_tickers"])
+    targets = [
+        t
+        for t in state["tickers"]
+        if t not in failed_set and action not in state["per_ticker_data"].get(t, {})
+    ]
+
+    if not targets:
+        return state
+
+    # Fast path: batch market fetch (single provider call can satisfy many tickers).
+    if action == "market":
+        tool = get_market_tool()
+        if hasattr(tool, "run_many"):
+            if not budget_manager.can_call(action, run_id):
+                logger.warning(
+                    "budget_manager: run %s exhausted API budget; skipping market batch for %d ticker(s)",
+                    run_id,
+                    len(targets),
+                )
+                for ticker in targets:
+                    if ticker not in state["failed_tickers"]:
+                        state["failed_tickers"].append(ticker)
+                state["react_history"].append(
+                    {
+                        "phase": "observation",
+                        "ticker": "",
+                        "action": action,
+                        "message": f"Skipped: API budget exhausted for market batch ({len(targets)} tickers).",
+                    }
+                )
+                return state
+
+            budget_manager.record_call(action, run_id)
+            try:
+                batch = tool.run_many(targets)
+                for ticker in targets:
+                    result = batch.get(ticker)
+                    if not isinstance(result, dict):
+                        if ticker not in state["failed_tickers"]:
+                            state["failed_tickers"].append(ticker)
+                        state["errors"].append(
+                            {"ticker": ticker, "tool": action, "error": "No market payload returned from batch fetch"}
+                        )
+                        continue
+                    state["per_ticker_data"].setdefault(ticker, {})["market"] = result
+                    state["react_history"].append(
+                        {
+                            "phase": "observation",
+                            "ticker": ticker,
+                            "action": "market",
+                            "message": "Market data fetched (batch).",
+                        }
+                    )
+                return state
+            except MCPToolError as exc:
+                state["errors"].append({"ticker": "*", "tool": action, "error": str(exc)})
+                if "rate limit" in str(exc).lower():
+                    for t in state["tickers"]:
+                        data = state["per_ticker_data"].get(t, {})
+                        if "market" not in data and t not in state["failed_tickers"]:
+                            state["failed_tickers"].append(t)
+                    return state
+                # Non-rate-limit batch failure: mark current market targets as failed
+                for ticker in targets:
+                    if ticker not in state["failed_tickers"]:
+                        state["failed_tickers"].append(ticker)
+                return state
+            except Exception as exc:  # noqa: BLE001
+                state["errors"].append({"ticker": "*", "tool": action, "error": str(exc)})
+                for ticker in targets:
+                    if ticker not in state["failed_tickers"]:
+                        state["failed_tickers"].append(ticker)
+                return state
+
+    # Parallel path for fundamentals/news to reduce end-to-end latency on larger universes.
+    if action in {"fundamentals", "news"}:
+        admitted: List[str] = []
+        for ticker in targets:
+            if not budget_manager.can_call(action, run_id):
+                logger.warning(
+                    "budget_manager: run %s exhausted API budget; skipping remaining %s calls (%d ticker(s))",
+                    run_id,
+                    action,
+                    len([t for t in targets if t not in admitted]),
+                )
+                if ticker not in state["failed_tickers"]:
+                    state["failed_tickers"].append(ticker)
+                state["react_history"].append(
+                    {
+                        "phase": "observation",
+                        "ticker": ticker,
+                        "action": action,
+                        "message": "Skipped: API budget exhausted for this run.",
+                    }
+                )
+                continue
+            budget_manager.record_call(action, run_id)
+            admitted.append(ticker)
+
+        if not admitted:
+            return state
+
+        tool = get_fundamentals_tool() if action == "fundamentals" else get_news_tool()
+        max_workers = int(os.environ.get("TOOL_PARALLELISM", "8"))
+        max_workers = max(1, min(max_workers, len(admitted)))
+
+        def _fetch_one(ticker: str) -> Dict[str, Any]:
+            if action == "fundamentals":
+                return tool.run({"ticker": ticker})
+            return tool.run({"ticker": ticker, "end_date": state["run_date"]})
+
+        futures: Dict[Any, str] = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            for t in admitted:
+                futures[pool.submit(_fetch_one, t)] = t
+
+            for future in as_completed(futures):
+                ticker = futures[future]
+                try:
+                    result = future.result()
+                    state["per_ticker_data"].setdefault(ticker, {})[action] = result
+                    state["react_history"].append(
+                        {
+                            "phase": "observation",
+                            "ticker": ticker,
+                            "action": action,
+                            "message": f"{action.capitalize()} fetched.",
+                        }
+                    )
+                except MCPToolError as exc:
+                    state["errors"].append({"ticker": ticker, "tool": action, "error": str(exc)})
+                    if ticker not in state["failed_tickers"]:
+                        state["failed_tickers"].append(ticker)
+                    state["react_history"].append(
+                        {
+                            "phase": "observation",
+                            "ticker": ticker,
+                            "action": action,
+                            "message": f"Tool failed: {exc}",
+                        }
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    state["errors"].append({"ticker": ticker, "tool": action, "error": str(exc)})
+                    if ticker not in state["failed_tickers"]:
+                        state["failed_tickers"].append(ticker)
+                    state["react_history"].append(
+                        {
+                            "phase": "observation",
+                            "ticker": ticker,
+                            "action": action,
+                            "message": f"Execution failed: {exc}",
+                        }
+                    )
+        return state
+
+    # Sequential fallback (market without batch support)
+    for ticker in targets:
+        if not budget_manager.can_call(action, run_id):
+            logger.warning(
+                "budget_manager: run %s exhausted API budget; skipping remaining %s calls (%d ticker(s))",
+                run_id,
+                action,
+                len([t for t in targets if t not in state["failed_tickers"]]),
+            )
+            if ticker not in state["failed_tickers"]:
+                state["failed_tickers"].append(ticker)
+            state["react_history"].append(
+                {
+                    "phase": "observation",
+                    "ticker": ticker,
+                    "action": action,
+                    "message": "Skipped: API budget exhausted for this run.",
+                }
+            )
+            continue
+
+        budget_manager.record_call(action, run_id)
+        try:
+            if action == "market":
+                _run_market_tool(state, ticker)
+            elif action == "fundamentals":
+                _run_fundamentals_tool(state, ticker)
+            elif action == "news":
+                _run_news_tool(state, ticker)
+        except MCPToolError as exc:
+            state["errors"].append({"ticker": ticker, "tool": action, "error": str(exc)})
+            if action == "market" and "rate limit" in str(exc).lower():
+                for t in state["tickers"]:
+                    data = state["per_ticker_data"].get(t, {})
+                    if "market" not in data and t not in state["failed_tickers"]:
+                        state["failed_tickers"].append(t)
+                break
+            if ticker not in state["failed_tickers"]:
+                state["failed_tickers"].append(ticker)
+            state["react_history"].append(
+                {
+                    "phase": "observation",
+                    "ticker": ticker,
+                    "action": action,
+                    "message": f"Tool failed: {exc}",
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            state["errors"].append({"ticker": ticker, "tool": action, "error": str(exc)})
+            if ticker not in state["failed_tickers"]:
+                state["failed_tickers"].append(ticker)
+            state["react_history"].append(
+                {
+                    "phase": "observation",
+                    "ticker": ticker,
+                    "action": action,
+                    "message": f"Execution failed: {exc}",
+                }
+            )
     return state
 
 
@@ -418,6 +609,109 @@ def compute_scores_node(state: GraphState) -> GraphState:
             state["per_ticker_data"].setdefault(t, {})[ticker] = v
 
     state["scores"] = scores
+    return state
+
+
+def detect_anomalies_node(state: GraphState) -> GraphState:
+    """Detect volume spikes and score deltas for all scored tickers.
+
+    Runs after compute_scores_node and before retrieve_rag_context_node.
+    Stores anomaly SignalEvent dicts in state["anomaly_signals"].
+    emit_signals_node later merges them into state["signal_events"].
+
+    Volume data is sourced from universe_mock.json (mock_volume / mock_avg_volume).
+    Score-delta data is sourced from the most recent prior run in SQLite.
+    Both detectors are non-fatal: individual ticker errors are logged and skipped.
+    """
+    from .event_store import load_recent_runs, load_run
+
+    run_id = state["run_id"]
+    run_date = state["run_date"]
+    scores = state.get("scores", {})
+    anomaly_events: List[Dict[str, Any]] = []
+
+    # ── Load prior run scores for score-delta detection ───────────────────────
+    prior_scores_by_ticker: Dict[str, Dict[str, float]] = {}
+    try:
+        recent = load_recent_runs(limit=2)
+        # recent[0] is the current in-flight run (may or may not be persisted yet);
+        # we want the last *completed* run, so look for the first run_id != current.
+        prior_run_meta = next(
+            (r for r in recent if r["run_id"] != run_id), None
+        )
+        if prior_run_meta:
+            prior_snapshot = load_run(prior_run_meta["run_id"])
+            if prior_snapshot:
+                prior_scores_by_ticker = prior_snapshot.get("scores", {})
+                logger.debug(
+                    "detect_anomalies_node: loaded prior scores for %d tickers from run %s",
+                    len(prior_scores_by_ticker),
+                    prior_run_meta["run_id"],
+                )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("detect_anomalies_node: could not load prior run scores: %s", exc)
+
+    # ── Load volume data from universe_mock.json ───────────────────────────────
+    volume_by_ticker: Dict[str, Dict[str, float]] = {}
+    try:
+        if _UNIVERSE_PATH.exists():
+            with _UNIVERSE_PATH.open() as f:
+                universe_data = json.load(f)
+            for entry in universe_data.get("tickers", []):
+                t = entry.get("ticker", "")
+                if t and "mock_volume" in entry and "mock_avg_volume" in entry:
+                    volume_by_ticker[t] = {
+                        "volume": float(entry["mock_volume"]),
+                        "avg_volume": float(entry["mock_avg_volume"]),
+                    }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("detect_anomalies_node: could not load volume data: %s", exc)
+
+    # ── Run detectors per ticker ───────────────────────────────────────────────
+    for ticker, score_block in scores.items():
+        try:
+            # Volume spike
+            vol_data = volume_by_ticker.get(ticker)
+            if vol_data:
+                anomaly = detect_volume_spike(
+                    ticker=ticker,
+                    volume=vol_data["volume"],
+                    avg_volume=vol_data["avg_volume"],
+                )
+                if anomaly:
+                    ev = build_anomaly_signal_event(ticker, anomaly, run_id, run_date, score_block)
+                    anomaly_events.append(ev)
+                    logger.debug("detect_anomalies_node: volume_spike %s (%.1f×)", ticker, anomaly["magnitude"])
+
+            # Score delta (only when prior run data is available)
+            prior = prior_scores_by_ticker.get(ticker)
+            if prior:
+                anomaly = detect_score_delta(
+                    ticker=ticker,
+                    current_scores=score_block,
+                    prior_scores=prior,
+                )
+                if anomaly:
+                    ev = build_anomaly_signal_event(ticker, anomaly, run_id, run_date, score_block)
+                    anomaly_events.append(ev)
+                    logger.debug(
+                        "detect_anomalies_node: %s %s (Δ%.1f)",
+                        anomaly["anomaly_type"], ticker, anomaly["magnitude"],
+                    )
+
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("detect_anomalies_node: ticker %s failed: %s", ticker, exc)
+            state["errors"].append({"ticker": ticker, "tool": "detect_anomalies", "error": str(exc)})
+
+    # Keep anomalies isolated here; emit_signals_node will merge them with
+    # base quality/momentum/risk signals to avoid accidental overwrite.
+    state["anomaly_signals"] = anomaly_events
+
+    logger.info(
+        "detect_anomalies_node: %d anomaly signal(s) produced",
+        len(anomaly_events),
+        extra={"run_id": run_id},
+    )
     return state
 
 
@@ -475,6 +769,40 @@ def _build_evidence_bundle(
     }
 
 
+def _evidence_target_tickers(state: GraphState) -> List[str]:
+    """
+    Select tickers that should go through expensive RAG + synthesis.
+
+    Defaults to top 25 by overall score, and always includes user watchlist
+    tickers that have scores. Set EVIDENCE_TOP_N=0 (or negative) to disable
+    capping and process all scored tickers.
+    """
+    scored = list(state.get("scores", {}).items())
+    if not scored:
+        return []
+
+    top_n = int(os.environ.get("EVIDENCE_TOP_N", "25"))
+    ranked = sorted(scored, key=lambda kv: float(kv[1].get("overall", 0.0)), reverse=True)
+
+    selected: List[str]
+    if top_n <= 0:
+        selected = [t for t, _ in ranked]
+    else:
+        selected = [t for t, _ in ranked[:top_n]]
+
+    # Include all scored watchlist tickers so user-facing names don't lose context.
+    scored_set = {t for t, _ in ranked}
+    selected_set = set(selected)
+    for profile in state.get("user_profiles", []):
+        for t in profile.get("watchlist", []):
+            tt = str(t).upper()
+            if tt in scored_set and tt not in selected_set:
+                selected.append(tt)
+                selected_set.add(tt)
+
+    return selected
+
+
 def retrieve_rag_context_node(state: GraphState) -> GraphState:
     if state.get("skip_synthesis"):
         state["per_ticker_rag_context"] = {}
@@ -489,7 +817,8 @@ def retrieve_rag_context_node(state: GraphState) -> GraphState:
     lookback_days = int(os.environ.get("RAG_LOOKBACK_DAYS", "42"))
     top_k = int(os.environ.get("RAG_TOP_K", "5"))
 
-    for ticker in state["scores"]:
+    target_tickers = _evidence_target_tickers(state)
+    for ticker in target_tickers:
         try:
             queries_run += 1
             query = (
@@ -539,7 +868,8 @@ def synthesize_evidence_node(state: GraphState) -> GraphState:
     client = OpenAI(api_key=api_key)
     synthesis: Dict[str, Any] = {}
 
-    for ticker in state["scores"]:
+    target_tickers = _evidence_target_tickers(state)
+    for ticker in target_tickers:
         try:
             bundle = _build_evidence_bundle(
                 ticker,
@@ -595,16 +925,24 @@ def synthesize_evidence_node(state: GraphState) -> GraphState:
 def emit_signals_node(state: GraphState) -> GraphState:
     from .models import build_signal_events
 
-    state["signal_events"] = build_signal_events(
+    base_events = build_signal_events(
         run_id=state["run_id"],
         run_date=state["run_date"],
         scores=state["scores"],
         failed_tickers=state["failed_tickers"],
         synthesis=state["per_ticker_synthesis"],
     )
+    anomaly_events = list(state.get("anomaly_signals", []))
+    seen_ids = {ev["id"] for ev in base_events}
+    merged_events = base_events + [ev for ev in anomaly_events if ev["id"] not in seen_ids]
+    state["signal_events"] = merged_events
     logger.info(
         "emit_signals_node",
-        extra={"run_id": state["run_id"], "signal_count": len(state["signal_events"])},
+        extra={
+            "run_id": state["run_id"],
+            "signal_count": len(state["signal_events"]),
+            "anomaly_count": len(anomaly_events),
+        },
     )
     return state
 
@@ -700,16 +1038,21 @@ def persist_snapshot_node(state: GraphState) -> GraphState:
 
 
 def assemble_report_json_node(state: GraphState) -> GraphState:
-    state["report_json"] = build_report(
+    report = build_report(
         run_date=state["run_date"],
         per_ticker_data=state["per_ticker_data"],
         scores=state["scores"],
-        report_dir="data/reports",
+        report_dir=str(_REPORT_DIR),
         errors=state["errors"],
         synthesis=state["per_ticker_synthesis"],
         rag_context=state.get("per_ticker_rag_context"),
         rag_stats=state.get("rag_stats"),
     )
+    # Attach anomaly signals so GET /latest-report exposes them as a top-level key.
+    # report is a TypedDict but we can mutate it safely here before it is serialised.
+    if report is not None:
+        report["anomaly_signals"] = state.get("anomaly_signals", [])  # type: ignore[typeddict-unknown-key]
+    state["report_json"] = report
     return state
 
 
@@ -737,7 +1080,7 @@ def post_to_n8n_node(state: GraphState) -> GraphState:
 def persist_report_node(state: GraphState) -> GraphState:
     if not state["report_json"]:
         return state
-    path = persist_report(state["report_json"], state["run_date"], report_dir="data/reports")
+    path = persist_report(state["report_json"], state["run_date"], report_dir=str(_REPORT_DIR))
     logger.info("persist_report", extra={"path": path, "run_date": state["run_date"]})
     return state
 
@@ -756,6 +1099,7 @@ def build_graph():
     graph.add_node("plan_next_action", plan_next_action)
     graph.add_node("execute_tool_action", execute_tool_action)
     graph.add_node("compute_scores", compute_scores_node)
+    graph.add_node("detect_anomalies", detect_anomalies_node)
     graph.add_node("retrieve_rag_context", retrieve_rag_context_node)
     graph.add_node("synthesize_evidence", synthesize_evidence_node)
     graph.add_node("emit_signals", emit_signals_node)
@@ -782,7 +1126,8 @@ def build_graph():
 
     graph.add_edge("execute_tool_action", "plan_next_action")
 
-    graph.add_edge("compute_scores", "retrieve_rag_context")
+    graph.add_edge("compute_scores", "detect_anomalies")
+    graph.add_edge("detect_anomalies", "retrieve_rag_context")
     graph.add_edge("retrieve_rag_context", "synthesize_evidence")
     graph.add_edge("synthesize_evidence", "emit_signals")
     graph.add_edge("emit_signals", "check_user_alerts")

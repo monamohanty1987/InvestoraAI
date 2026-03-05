@@ -3,3 +3,10 @@ __pycache__/
 base/
 node_modules
 .claude/worktrees/
+
+# Runtime artifacts
+data/cache/
+data/reports/
+langgraph/data/cache/
+langgraph/data/reports/
+langgraph/data/investora.db

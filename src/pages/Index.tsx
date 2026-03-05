@@ -87,7 +87,7 @@ const Index = () => {
   }, [report]);
 
   const handleGenerateReport = () => {
-    startStream({ skipSynthesis: false })
+    startStream({ skipSynthesis: true })
       .then(() => toast.success("Report generated successfully"))
       .catch((err: unknown) =>
         toast.error(err instanceof Error ? err.message : "Generation failed")
