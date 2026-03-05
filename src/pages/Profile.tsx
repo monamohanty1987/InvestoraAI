@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Save } from "lucide-react";
+import { User, Save, Plus, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,10 @@ import {
   INTEREST_OPTIONS,
   MARKET_OPTIONS,
   CURRENCY_OPTIONS,
+  HORIZON_OPTIONS,
+  CONSTRAINT_OPTIONS,
+  ASSET_OPTIONS,
+  type Position,
 } from "@/lib/auth";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -35,6 +39,24 @@ const INTEREST_LABELS: Record<string, string> = {
 const MARKET_LABELS: Record<string, string> = {
   US: "US Markets",
   EU: "EU Markets",
+};
+
+const HORIZON_LABELS: Record<string, string> = {
+  short: "Short-term",
+  medium: "Medium-term",
+  long: "Long-term",
+};
+
+const CONSTRAINT_LABELS: Record<string, string> = {
+  no_crypto: "No Crypto",
+  ESG: "ESG Only",
+  max_20pct: "Max 20% Position",
+};
+
+const ASSET_LABELS: Record<string, string> = {
+  stocks: "Stocks",
+  ETFs: "ETFs",
+  crypto: "Crypto",
 };
 
 function riskLabelFromPct(pct: number): string {
@@ -63,7 +85,7 @@ export default function Profile() {
 
   const p = user?.profile;
 
-  // Form state — initialised from stored profile
+  // ── Existing form state ────────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(p?.displayName ?? "");
   const [riskPct, setRiskPct] = useState(
     p?.riskTolerancePercent ?? pctFromRisk(p?.riskTolerance ?? "medium")
@@ -78,12 +100,61 @@ export default function Profile() {
   );
   const [saving, setSaving] = useState(false);
 
+  // ── v3 Investment Profile state ────────────────────────────────────────
+  const [horizon, setHorizon] = useState<"short" | "medium" | "long">(
+    p?.horizon ?? "medium"
+  );
+  const [constraints, setConstraints] = useState<string[]>(p?.constraints ?? []);
+  const [preferredAssets, setPreferredAssets] = useState<string[]>(
+    p?.preferredAssets ?? []
+  );
+
+  // ── v3 Portfolio Positions state ───────────────────────────────────────
+  const [positions, setPositions] = useState<Position[]>(p?.positions ?? []);
+  const [newTicker, setNewTicker] = useState("");
+  const [newShares, setNewShares] = useState("");
+
+  // ── Toggle helpers ─────────────────────────────────────────────────────
   const toggleInterest = (opt: string) => {
     setInterests((prev) =>
       prev.includes(opt) ? prev.filter((i) => i !== opt) : [...prev, opt]
     );
   };
 
+  const toggleConstraint = (opt: string) => {
+    setConstraints((prev) =>
+      prev.includes(opt) ? prev.filter((c) => c !== opt) : [...prev, opt]
+    );
+  };
+
+  const toggleAsset = (opt: string) => {
+    setPreferredAssets((prev) =>
+      prev.includes(opt) ? prev.filter((a) => a !== opt) : [...prev, opt]
+    );
+  };
+
+  // ── Position helpers ───────────────────────────────────────────────────
+  const addPosition = () => {
+    const ticker = newTicker.trim().toUpperCase();
+    const shares = parseFloat(newShares);
+    if (!ticker || isNaN(shares) || shares <= 0) return;
+    setPositions((prev) => {
+      const existingIdx = prev.findIndex((pos) => pos.ticker === ticker);
+      if (existingIdx >= 0) {
+        // Update shares if ticker already present
+        return prev.map((pos, i) => (i === existingIdx ? { ...pos, shares } : pos));
+      }
+      return [...prev, { ticker, shares }];
+    });
+    setNewTicker("");
+    setNewShares("");
+  };
+
+  const removePosition = (ticker: string) => {
+    setPositions((prev) => prev.filter((pos) => pos.ticker !== ticker));
+  };
+
+  // ── Save ───────────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -97,6 +168,11 @@ export default function Profile() {
         telegramChatId: telegramChatId.trim(),
         dailyEmailDigest,
         alertNotifications,
+        // v3 fields
+        horizon,
+        constraints,
+        preferredAssets,
+        positions,
       });
       if (ok) {
         toast({ title: "Settings saved", description: "Your preferences have been updated." });
@@ -264,6 +340,157 @@ export default function Profile() {
               <span>Conservative</span>
               <span>Balanced</span>
               <span>Aggressive</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── INVESTMENT PROFILE ──────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+              Investment Profile
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-4">
+
+            {/* Horizon pills */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Investment Horizon</Label>
+              <div className="flex gap-2 pt-0.5">
+                {HORIZON_OPTIONS.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setHorizon(opt)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all select-none ${
+                      horizon === opt
+                        ? "bg-primary/15 text-primary border-primary/40"
+                        : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40"
+                    }`}
+                  >
+                    {HORIZON_LABELS[opt]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Preferred Assets toggles */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Preferred Assets</Label>
+              <div className="flex flex-wrap gap-2 pt-0.5">
+                {ASSET_OPTIONS.map((opt) => (
+                  <Badge
+                    key={opt}
+                    variant="outline"
+                    className={`cursor-pointer text-xs transition-all select-none ${
+                      preferredAssets.includes(opt)
+                        ? "bg-primary/15 text-primary border-primary/40"
+                        : "text-muted-foreground hover:text-foreground hover:border-border"
+                    }`}
+                    onClick={() => toggleAsset(opt)}
+                  >
+                    {ASSET_LABELS[opt]}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* Constraints toggles */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Constraints</Label>
+              <div className="flex flex-wrap gap-2 pt-0.5">
+                {CONSTRAINT_OPTIONS.map((opt) => (
+                  <Badge
+                    key={opt}
+                    variant="outline"
+                    className={`cursor-pointer text-xs transition-all select-none ${
+                      constraints.includes(opt)
+                        ? "bg-amber-500/15 text-amber-600 border-amber-500/40 dark:text-amber-400"
+                        : "text-muted-foreground hover:text-foreground hover:border-border"
+                    }`}
+                    onClick={() => toggleConstraint(opt)}
+                  >
+                    {CONSTRAINT_LABELS[opt]}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Active constraints exclude non-compliant tickers from discovery signals.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── PORTFOLIO POSITIONS ──────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+              Portfolio Positions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Track holdings manually to boost watchlist relevance in your personalized signals.
+            </p>
+
+            {/* Existing positions list */}
+            {positions.length > 0 && (
+              <div className="space-y-1.5">
+                {positions.map((pos) => (
+                  <div
+                    key={pos.ticker}
+                    className="flex items-center justify-between bg-muted/30 rounded-md px-3 py-2"
+                  >
+                    <span className="font-mono text-sm font-semibold text-foreground">
+                      {pos.ticker}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {pos.shares.toLocaleString()} shares
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removePosition(pos.ticker)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        aria-label={`Remove ${pos.ticker}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add position inline form */}
+            <div className="flex gap-2 pt-1">
+              <Input
+                value={newTicker}
+                onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
+                placeholder="TICKER"
+                className="font-mono w-28 uppercase"
+                onKeyDown={(e) => e.key === "Enter" && addPosition()}
+              />
+              <Input
+                type="number"
+                value={newShares}
+                onChange={(e) => setNewShares(e.target.value)}
+                placeholder="Shares"
+                className="font-mono w-28"
+                min={0}
+                step="any"
+                onKeyDown={(e) => e.key === "Enter" && addPosition()}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addPosition}
+                className="gap-1 shrink-0"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add
+              </Button>
             </div>
           </CardContent>
         </Card>

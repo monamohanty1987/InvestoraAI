@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from typing_extensions import TypedDict
 
@@ -209,3 +209,59 @@ def build_signal_events(
         )
 
     return events
+
+
+# ---------------------------------------------------------------------------
+# v3 Personalization Models
+# ---------------------------------------------------------------------------
+
+
+class UserProfileContext(TypedDict):
+    """Loaded from SQLite at init_state; carried through the LangGraph run."""
+    user_id: str
+    risk_tolerance: Literal["low", "medium", "high"]
+    risk_tolerance_pct: int             # 0–100 slider value
+    interests: List[str]                # e.g. ["tech", "energy", "AI"]
+    horizon: Literal["short", "medium", "long"]
+    constraints: List[str]              # e.g. ["no_crypto", "ESG"]
+    preferred_assets: List[str]         # e.g. ["stocks", "ETFs"]
+    watchlist: List[str]                # synced from user_watchlists table
+    positions: List[Dict[str, Any]]     # [{ticker, shares}] — manually entered
+
+
+class PersonalizedSignal(TypedDict):
+    """A SignalEvent re-scored and annotated for a specific user."""
+    signal_id: str                      # references signal_events.id
+    ticker: str
+    signal_type: str
+    direction: str
+    severity: str
+    narrative: Optional[str]
+    confidence: float
+    watchlist_relevance: float          # 1.0 if ticker in user watchlist, else 0.0
+    profile_fit_score: float            # 0.0–1.0 from PersonalizationAgent
+    risk_mismatch_penalty: float        # 0.0–0.4 penalty for high-risk signal + low-risk user
+    bucket: Literal["in_watchlist", "discovery"]
+    action_frame: str                   # "Review" | "Monitor" | "Trim Risk"
+    urgency: Literal["High", "Medium", "Low"]
+    catalyst_window: Optional[str]      # "Earnings in 3 days" — rule-based, future use
+    risk_flags: List[str]
+    fit_score: float                    # final combined score used for ranking
+
+
+class UserReportBundle(TypedDict):
+    """Per-user output persisted in user_report_bundles after each pipeline run."""
+    user_id: str
+    run_id: str
+    run_date: str
+    generated_at: str                   # ISO datetime UTC
+    # Portfolio Pulse (Section 1)
+    watchlist_performance: Dict[str, Any]       # {ticker: {1d, 1w, 1m pct_change}}
+    market_regime: Literal["Risk-On", "Neutral", "Risk-Off"]
+    risk_alignment: Literal["Aligned", "Caution", "Off-Profile"]
+    # Signal Buckets (Sections 2-4)
+    watchlist_signals: List[PersonalizedSignal]
+    discovery_signals: List[PersonalizedSignal]
+    top_conviction: List[PersonalizedSignal]    # top 3 overall by fit_score
+    # Profile Mismatch
+    mismatch_alerts: List[Dict[str, Any]]       # [{ticker, issue, recommendation}]

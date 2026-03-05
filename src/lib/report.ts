@@ -681,3 +681,71 @@ export function useDeleteAlert(userId: string | undefined) {
     },
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── v3 Personalization interfaces & hooks ─────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface PersonalizedSignal {
+  signal_id: string;
+  ticker: string;
+  signal_type: string;
+  direction: string;
+  severity: string;
+  narrative: string | null;
+  confidence: number;
+  watchlist_relevance: number;
+  profile_fit_score: number;
+  risk_mismatch_penalty: number;
+  bucket: "in_watchlist" | "discovery";
+  action_frame: string;
+  urgency: "High" | "Medium" | "Low";
+  catalyst_window: string | null;
+  risk_flags: string[];
+  fit_score: number;
+}
+
+export interface UserReportBundle {
+  user_id: string;
+  run_id: string;
+  run_date: string;
+  generated_at: string;
+  // Portfolio Pulse
+  watchlist_performance: Record<string, { "1d": number | null; "1w": number | null; "1m": number | null }>;
+  market_regime: "Risk-On" | "Neutral" | "Risk-Off";
+  risk_alignment: "Aligned" | "Caution" | "Off-Profile";
+  // Signal buckets
+  watchlist_signals: PersonalizedSignal[];
+  discovery_signals: PersonalizedSignal[];
+  top_conviction: PersonalizedSignal[];
+  // Profile mismatch
+  mismatch_alerts: Array<{ ticker: string; issue: string; recommendation: string }>;
+}
+
+export function useDashboard(userId: string | undefined) {
+  return useQuery<UserReportBundle, Error>({
+    queryKey: ["dashboard", userId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/user/${userId}/dashboard`);
+      if (!res.ok) throw new Error(`dashboard: ${res.status}`);
+      return res.json() as Promise<UserReportBundle>;
+    },
+    enabled: Boolean(userId),
+    staleTime: 5 * 60_000,   // 5 minutes — bundles update per analysis run
+    retry: false,             // 404 (no bundle yet) should not be retried
+  });
+}
+
+export function usePersonalizedSignals(userId: string | undefined) {
+  return useQuery<Pick<UserReportBundle, "watchlist_signals" | "discovery_signals">, Error>({
+    queryKey: ["personalized-signals", userId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/user/${userId}/personalized-signals`);
+      if (!res.ok) throw new Error(`personalized-signals: ${res.status}`);
+      return res.json();
+    },
+    enabled: Boolean(userId),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}

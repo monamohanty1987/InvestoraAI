@@ -3,6 +3,12 @@
 // User records are stored in n8n's workflow static data (SQLite via Docker).
 // Only { username, userId, profile } is cached in localStorage for session rehydration.
 
+/** A manually entered portfolio position (v3). No cost basis in MVP. */
+export interface Position {
+  ticker: string;
+  shares: number;
+}
+
 export interface UserProfile {
   // ── Existing fields ───────────────────────────────────────
   riskTolerance: "low" | "medium" | "high";
@@ -15,6 +21,11 @@ export interface UserProfile {
   baseCurrency?: "USD" | "EUR" | "GBP";
   dailyEmailDigest?: boolean;
   alertNotifications?: boolean;
+  // ── New v3 fields ─────────────────────────────────────────
+  horizon?: "short" | "medium" | "long";   // investment time horizon
+  constraints?: string[];                   // e.g. ["no_crypto", "ESG", "max_20pct"]
+  preferredAssets?: string[];               // e.g. ["stocks", "ETFs", "crypto"]
+  positions?: Position[];                   // manually entered portfolio positions
 }
 
 export interface Session {
@@ -27,6 +38,10 @@ export const INTEREST_OPTIONS = ["tech", "crypto", "energy", "forex", "commoditi
 export const RISK_OPTIONS = ["low", "medium", "high"] as const;
 export const MARKET_OPTIONS = ["US", "EU"] as const;
 export const CURRENCY_OPTIONS = ["USD", "EUR", "GBP"] as const;
+// v3 options
+export const HORIZON_OPTIONS = ["short", "medium", "long"] as const;
+export const CONSTRAINT_OPTIONS = ["no_crypto", "ESG", "max_20pct"] as const;
+export const ASSET_OPTIONS = ["stocks", "ETFs", "crypto"] as const;
 
 const N8N_BASE = import.meta.env.VITE_N8N_BASE_URL;
 const SESSION_KEY = "investora_session";

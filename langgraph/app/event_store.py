@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
-from .models import AnalysisSnapshot, SignalEvent
+from .models import AnalysisSnapshot, SignalEvent, UserReportBundle
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "investora.db"
 
@@ -61,6 +61,31 @@ CREATE TABLE IF NOT EXISTS user_alerts (
 
 CREATE INDEX IF NOT EXISTS idx_ua_user_id ON user_alerts(user_id);
 CREATE INDEX IF NOT EXISTS idx_ua_status  ON user_alerts(status);
+
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id      TEXT PRIMARY KEY,
+    profile_json TEXT NOT NULL,
+    updated_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_report_bundles (
+    user_id     TEXT NOT NULL,
+    run_id      TEXT NOT NULL,
+    run_date    TEXT NOT NULL,
+    bundle_json TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (user_id, run_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_urb_user_id ON user_report_bundles(user_id, run_date);
+
+CREATE TABLE IF NOT EXISTS api_budget_log (
+    date         TEXT NOT NULL,
+    provider     TEXT NOT NULL,
+    call_count   INTEGER DEFAULT 0,
+    run_id       TEXT,
+    PRIMARY KEY (date, provider)
+);
 """
 
 
@@ -363,6 +388,86 @@ def _row_to_alert(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# User profile helpers (v3 Iteration 1)
+# ---------------------------------------------------------------------------
+
+def save_user_profile(user_id: str, profile_json: Dict[str, Any]) -> None:
+    """Upsert a user profile JSON blob to user_profiles. Idempotent."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as con:
+        con.execute(
+            """
+            INSERT OR REPLACE INTO user_profiles (user_id, profile_json, updated_at)
+            VALUES (?, ?, ?)
+            """,
+            (user_id, json.dumps(profile_json), now),
+        )
+
+
+def load_user_profile_json(user_id: str) -> Optional[Dict[str, Any]]:
+    """Return the raw profile JSON dict for a user, or None."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT profile_json FROM user_profiles WHERE user_id = ?", (user_id,)
+        ).fetchone()
+    return json.loads(row["profile_json"]) if row else None
+
+
+def load_all_profile_jsons() -> List[Dict[str, Any]]:
+    """Return all user profile JSON dicts (for LangGraph init_state)."""
+    with _conn() as con:
+        rows = con.execute("SELECT user_id, profile_json FROM user_profiles").fetchall()
+    result = []
+    for r in rows:
+        data = json.loads(r["profile_json"])
+        data["_user_id"] = r["user_id"]
+        result.append(data)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# User report bundle helpers (v3 Iteration 1)
+# ---------------------------------------------------------------------------
+
+def save_bundle(bundle: UserReportBundle) -> None:
+    """Upsert a UserReportBundle to user_report_bundles."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    bundle_str = json.dumps(bundle)  # will raise if not serializable — intentional
+    with _conn() as con:
+        con.execute(
+            """
+            INSERT OR REPLACE INTO user_report_bundles
+                (user_id, run_id, run_date, bundle_json, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                bundle["user_id"],
+                bundle["run_id"],
+                bundle["run_date"],
+                bundle_str,
+                now,
+            ),
+        )
+
+
+def load_latest_bundle(user_id: str) -> Optional[Dict[str, Any]]:
+    """Return the most recent UserReportBundle for a user, or None."""
+    with _conn() as con:
+        row = con.execute(
+            """
+            SELECT bundle_json FROM user_report_bundles
+            WHERE user_id = ?
+            ORDER BY run_date DESC, created_at DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+    return json.loads(row["bundle_json"]) if row else None
+
+
 def _row_to_signal(row: sqlite3.Row) -> SignalEvent:
     return SignalEvent(
         id=row["id"],
@@ -378,3 +483,39 @@ def _row_to_signal(row: sqlite3.Row) -> SignalEvent:
         narrative=row["narrative"],
         route=row["route"],
     )
+
+
+# ---------------------------------------------------------------------------
+# API budget log helpers (v3 Iteration 2)
+# ---------------------------------------------------------------------------
+
+def record_api_call(date_str: str, provider: str, run_id: str) -> None:
+    """Upsert one API call into api_budget_log, incrementing call_count.
+
+    Uses SQLite ON CONFLICT to atomically increment the counter for the
+    (date, provider) primary key.  Called by BudgetManager.record_call().
+    """
+    with _conn() as con:
+        con.execute(
+            """
+            INSERT INTO api_budget_log (date, provider, call_count, run_id)
+            VALUES (?, ?, 1, ?)
+            ON CONFLICT(date, provider) DO UPDATE SET
+                call_count = call_count + 1,
+                run_id     = excluded.run_id
+            """,
+            (date_str, provider, run_id),
+        )
+
+
+def get_api_budget_usage(date_str: str) -> Dict[str, int]:
+    """Return {provider: total_call_count} for a given date.
+
+    Returns an empty dict if no calls were logged for that date.
+    """
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT provider, call_count FROM api_budget_log WHERE date = ?",
+            (date_str,),
+        ).fetchall()
+    return {r["provider"]: r["call_count"] for r in rows}

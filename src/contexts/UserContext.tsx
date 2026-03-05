@@ -92,6 +92,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const updateProfile = async (profile: UserProfile) => {
     if (!user) return false;
     const ok = await updateUserProfile(user.username, profile);
+    // Mirror to FastAPI SQLite so the LangGraph PersonalizationNode can read it.
+    // Fire-and-forget — a failure here is non-critical (n8n is the source of truth).
+    fetch(`${API_BASE}/user/${user.userId}/profile`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    }).catch(() => { /* non-critical — swallow silently */ });
     if (ok) {
       const updated: Session = { ...user, profile };
       setSession(updated);
