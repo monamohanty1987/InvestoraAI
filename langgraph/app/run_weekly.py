@@ -19,7 +19,7 @@ else:
 
 def run_weekly(
     run_date: str | None = None,
-    skip_synthesis: bool = True,
+    skip_synthesis: bool = False,
     skip_post: bool = False,
 ) -> Dict[str, Any]:
     load_dotenv()
@@ -32,6 +32,7 @@ def run_weekly(
     initial: Dict[str, Any] = {
         "skip_synthesis": skip_synthesis,
         "scope": "fast" if skip_synthesis else "full",
+        "trigger_weekly_digest": True,
     }
     result = app.invoke(initial, config={"recursion_limit": recursion_limit})
     return {
@@ -57,6 +58,7 @@ def run_analysis(
     initial: Dict[str, Any] = {
         "skip_synthesis": skip_synthesis,
         "scope": "fast" if skip_synthesis else "full",
+        "trigger_weekly_digest": False,
     }
     if tickers:
         initial["tickers"] = [t.upper() for t in tickers]
@@ -82,7 +84,7 @@ def main() -> None:
     parser.add_argument("--no-post", action="store_true", help="Skip posting payload to n8n webhook")
     args = parser.parse_args()
 
-    result = run_weekly(run_date=args.run_date, skip_synthesis=True, skip_post=args.no_post)
+    result = run_weekly(run_date=args.run_date, skip_synthesis=False, skip_post=args.no_post)
     print(json.dumps(result, ensure_ascii=True, indent=2))
 
 

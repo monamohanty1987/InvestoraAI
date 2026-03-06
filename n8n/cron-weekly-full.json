@@ -45,7 +45,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{ \"no_post\": false }",
+        "jsonBody": "{ \"skip_synthesis\": false, \"no_post\": false }",
         "options": {
           "timeout": 600000
         }

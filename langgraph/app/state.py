@@ -83,6 +83,7 @@ class GraphState(TypedDict):
     run_date: str
     tickers: List[str]
     scope: str                           # "full" | "fast"; "fast" skips LLM synthesis
+    trigger_weekly_digest: bool          # True only for weekly-run flow (cron /run-weekly)
     skip_synthesis: bool                 # when True, synthesize_evidence_node is bypassed
     current_ticker: Optional[str]
     action: Optional[str]

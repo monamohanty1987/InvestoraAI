@@ -10,6 +10,7 @@ import { ConvictionIdeas } from "@/components/dashboard/ConvictionIdeas";
 import { WatchlistAttention } from "@/components/dashboard/WatchlistAttention";
 import { DiscoverySignals } from "@/components/dashboard/DiscoverySignals";
 import { InvestmentProfileFilters } from "@/components/dashboard/InvestmentProfileFilters";
+import { ChatAgent } from "@/components/ChatAgent";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/contexts/UserContext";
 import { useDashboard, useLatestReport, useRunHistory, useStreamRun } from "@/lib/report";
@@ -167,6 +168,7 @@ const Index = () => {
           </div>
         </div>
       </footer>
+      <ChatAgent />
     </div>
   );
 };

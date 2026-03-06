@@ -117,6 +117,7 @@ def init_state(state: GraphState) -> GraphState:
 
     skip_synthesis = bool(state.get("skip_synthesis", False))
     scope = state.get("scope") or ("fast" if skip_synthesis else "full")
+    trigger_weekly_digest = bool(state.get("trigger_weekly_digest", False))
 
     # Load all user profiles and collect watchlist tickers for prioritisation
     user_profiles = load_all_profiles()
@@ -133,6 +134,7 @@ def init_state(state: GraphState) -> GraphState:
         "run_date": run_date,
         "tickers": tickers,
         "scope": scope,
+        "trigger_weekly_digest": trigger_weekly_digest,
         "skip_synthesis": skip_synthesis,
         "current_ticker": None,
         "action": None,
@@ -1062,7 +1064,11 @@ def post_candidates_node(state: GraphState) -> GraphState:
     if skip_post:
         return state
 
-    # Weekly digest email is sent only for full-scope runs.
+    # Weekly digest email is sent only on the weekly-run flow (cron /run-weekly).
+    if not bool(state.get("trigger_weekly_digest", False)):
+        return state
+
+    # Keep full-scope safeguard.
     if state.get("scope", "full") != "full":
         return state
 

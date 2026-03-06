@@ -26,6 +26,7 @@ def post_candidates_to_n8n(
     payload: Dict[str, Any] = {
         "user_id": weekly_digest.get("user_id", ""),
         "email": weekly_digest.get("email", ""),
+        "to": weekly_digest.get("email", ""),
         "telegram_chat_id": weekly_digest.get("telegram_chat_id", ""),
         "run_id": run_id,
         "run_date": run_date,

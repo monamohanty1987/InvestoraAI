@@ -33,7 +33,7 @@
       "position": [800, 300],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $json.to }}",
+        "toList": "={{ $json.to || $('Receive Weekly Digest Webhook').item.json.body.email }}",
         "subject": "={{ $json.subject }}",
         "emailType": "html",
         "message": "={{ $json.html }}",

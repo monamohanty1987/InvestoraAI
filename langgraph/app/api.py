@@ -79,7 +79,7 @@ _active_streams: Dict[str, asyncio.Queue] = {}
 
 class RunWeeklyRequest(BaseModel):
     run_date: Optional[str] = None
-    skip_synthesis: bool = True
+    skip_synthesis: bool = False
     no_post: bool = False
 
 
