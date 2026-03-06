@@ -27,9 +27,10 @@ import {
   type Position,
 } from "@/lib/auth";
 
-const N8N_BASE =
+const N8N_BASE = (
   (import.meta.env.VITE_N8N_BASE_URL as string | undefined) ??
-  "https://ai-experiementation.app.n8n.cloud/webhook";
+  "https://ai-experiementation.app.n8n.cloud/webhook"
+).replace(/\/+$/, "");
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -167,6 +168,9 @@ export default function Profile() {
   const triggerDemoTelegramAlert = async () => {
     setDemoSending("telegram");
     try {
+      if (!user) {
+        throw new Error("No active user session");
+      }
       const resolvedTelegramChatId = (user.profile?.telegramChatId ?? telegramChatId).trim();
       if (!resolvedTelegramChatId) {
         throw new Error("Missing Telegram Chat ID");
@@ -198,15 +202,21 @@ export default function Profile() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}${body ? `: ${body.slice(0, 160)}` : ""}`);
+      }
       toast({
         title: "Demo Telegram Triggered",
         description: "Sent sample signal alert payload to n8n.",
       });
-    } catch {
+    } catch (err) {
       toast({
         title: "Demo Trigger Failed",
-        description: "Could not send demo Telegram payload to n8n.",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Could not send demo Telegram payload to n8n.",
         variant: "destructive",
       });
     } finally {
@@ -217,6 +227,9 @@ export default function Profile() {
   const triggerDemoWeeklyEmail = async () => {
     setDemoSending("weekly");
     try {
+      if (!user) {
+        throw new Error("No active user session");
+      }
       const resolvedEmail = (user.profile?.email ?? email).trim();
       if (!resolvedEmail) {
         throw new Error("Missing email");
@@ -229,6 +242,7 @@ export default function Profile() {
       const payload = {
         user_id: user.userId,
         email: resolvedEmail,
+        to: resolvedEmail,
         telegram_chat_id: (user.profile?.telegramChatId ?? telegramChatId).trim(),
         run_id: `demo-${Date.now()}`,
         run_date: runDate,
@@ -284,15 +298,21 @@ export default function Profile() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}${body ? `: ${body.slice(0, 160)}` : ""}`);
+      }
       toast({
         title: "Demo Weekly Email Triggered",
         description: "Sent sample weekly candidate payload to n8n.",
       });
-    } catch {
+    } catch (err) {
       toast({
         title: "Demo Trigger Failed",
-        description: "Could not send demo weekly email payload to n8n.",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Could not send demo weekly email payload to n8n.",
         variant: "destructive",
       });
     } finally {
