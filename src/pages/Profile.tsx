@@ -217,6 +217,10 @@ export default function Profile() {
   const triggerDemoWeeklyEmail = async () => {
     setDemoSending("weekly");
     try {
+      const resolvedEmail = (user.profile?.email ?? email).trim();
+      if (!resolvedEmail) {
+        throw new Error("Missing email");
+      }
       const now = new Date();
       const runDate = now.toISOString().slice(0, 10);
       const weekStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
@@ -224,7 +228,7 @@ export default function Profile() {
         .slice(0, 10);
       const payload = {
         user_id: user.userId,
-        email: email.trim(),
+        email: resolvedEmail,
         telegram_chat_id: (user.profile?.telegramChatId ?? telegramChatId).trim(),
         run_id: `demo-${Date.now()}`,
         run_date: runDate,
