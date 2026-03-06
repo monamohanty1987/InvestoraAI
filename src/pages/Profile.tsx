@@ -167,10 +167,14 @@ export default function Profile() {
   const triggerDemoTelegramAlert = async () => {
     setDemoSending("telegram");
     try {
+      const resolvedTelegramChatId = (user.profile?.telegramChatId ?? telegramChatId).trim();
+      if (!resolvedTelegramChatId) {
+        throw new Error("Missing Telegram Chat ID");
+      }
       const runDate = new Date().toISOString().slice(0, 10);
       const payload = {
-        user_id: user.id,
-        telegram_chat_id: telegramChatId.trim(),
+        user_id: user.userId,
+        chat_id: resolvedTelegramChatId,
         run_id: `demo-${Date.now()}`,
         run_date: runDate,
         alert_count: 1,
@@ -219,9 +223,9 @@ export default function Profile() {
         .toISOString()
         .slice(0, 10);
       const payload = {
-        user_id: user.id,
+        user_id: user.userId,
         email: email.trim(),
-        telegram_chat_id: telegramChatId.trim(),
+        telegram_chat_id: (user.profile?.telegramChatId ?? telegramChatId).trim(),
         run_id: `demo-${Date.now()}`,
         run_date: runDate,
         week_start: weekStart,
