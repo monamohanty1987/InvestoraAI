@@ -83,6 +83,10 @@ function pctFromRisk(risk: "low" | "medium" | "high"): number {
   return 83;
 }
 
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 // ── Profile page ───────────────────────────────────────────────────────────
 
 export default function Profile() {
@@ -93,7 +97,9 @@ export default function Profile() {
 
   // ── Existing form state ────────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(p?.displayName ?? "");
-  const [email, setEmail] = useState(p?.email ?? "");
+  const [email, setEmail] = useState(
+    p?.email ?? (user?.username && looksLikeEmail(user.username) ? user.username : "")
+  );
   const [riskPct, setRiskPct] = useState(
     p?.riskTolerancePercent ?? pctFromRisk(p?.riskTolerance ?? "medium")
   );
@@ -230,7 +236,11 @@ export default function Profile() {
       if (!user) {
         throw new Error("No active user session");
       }
-      const resolvedEmail = (user.profile?.email ?? email).trim();
+      const resolvedEmail = (
+        user.profile?.email ??
+        email ??
+        (looksLikeEmail(user.username) ? user.username : "")
+      ).trim();
       if (!resolvedEmail) {
         throw new Error("Missing email");
       }
