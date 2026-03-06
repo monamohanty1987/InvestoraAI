@@ -29,7 +29,7 @@
       "position": [460, 300],
       "parameters": {
         "method": "POST",
-        "url": "={{ $vars.INVESTORA_API_URL }}/run-analysis",
+        "url": "https://investoraai.onrender.com/run-analysis",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -83,7 +83,7 @@
       "position": [900, 200],
       "parameters": {
         "method": "POST",
-        "url": "={{ $vars.INVESTORA_API_URL.replace('/api', '') }}/webhook/investora-alerts",
+        "url": "https://ai-experiementation.app.n8n.cloud/webhook/investora-alerts",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ run_id: $('Trigger Fast Analysis').item.json.run_id, run_date: $('Trigger Fast Analysis').item.json.run_date, alert_count: $('Trigger Fast Analysis').item.json.report_json?.top_opportunities?.filter(o => o.score >= 8.5 || o.score <= 1.5).length || 0, alerts: [] }) }}",
@@ -122,6 +122,6 @@
   },
   "staticData": null,
   "meta": {
-    "description": "Runs a fast daily scan (no LLM synthesis) Mon–Fri at 07:00 UTC. If high-scoring alerts are present they are forwarded to the investora-alerts webhook for Telegram delivery. Set INVESTORA_API_URL and CRON_SECRET in n8n Variables before activating."
+    "description": "Runs a fast daily scan (no LLM synthesis) Mon–Fri at 07:00 UTC. If high-scoring alerts are present they are forwarded to the investora-alerts webhook for Telegram delivery."
   }
 }

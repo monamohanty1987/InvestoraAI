@@ -12,22 +12,22 @@ logger = logging.getLogger(__name__)
 
 
 def post_alerts_to_n8n(
-    alert_signals: List[SignalEvent],
+    alert_signals: List[Dict[str, Any]] | List[SignalEvent],
     run_id: str,
     run_date: str,
+    user_id: str = "",
+    telegram_chat_id: str = "",
     timeout: int = 15,
 ) -> None:
-    """POST alert-routed signals to the n8n alert webhook.
-
-    Soft-fails when ALERT_WEBHOOK_URL is not configured so existing runs
-    without the env var are unaffected.
-    """
-    url = os.environ.get("ALERT_WEBHOOK_URL", "")
-    if not url:
-        logger.info("post_alerts_to_n8n: ALERT_WEBHOOK_URL not set; skipping.")
-        return
+    """POST immediate alert signals to the n8n alert webhook."""
+    url = os.environ.get(
+        "ALERT_WEBHOOK_URL",
+        "https://ai-experiementation.app.n8n.cloud/webhook/investora-alerts",
+    )
 
     payload: Dict[str, Any] = {
+        "user_id": user_id,
+        "telegram_chat_id": telegram_chat_id,
         "run_id": run_id,
         "run_date": run_date,
         "alert_count": len(alert_signals),
@@ -37,8 +37,10 @@ def post_alerts_to_n8n(
                 "signal_type": ev["signal_type"],
                 "direction": ev["direction"],
                 "severity": ev["severity"],
-                "score": ev["score"],
+                "urgency": ev.get("urgency", ""),
+                "score": float(ev.get("score", ev.get("fit_score", 0.0))),
                 "narrative": ev.get("narrative"),
+                "action_frame": ev.get("action_frame", ""),
             }
             for ev in alert_signals
         ],
@@ -63,10 +65,10 @@ def post_user_alerts_to_n8n(
 
     Soft-fails when ALERT_WEBHOOK_URL is not configured.
     """
-    url = os.environ.get("ALERT_WEBHOOK_URL", "")
-    if not url:
-        logger.info("post_user_alerts_to_n8n: ALERT_WEBHOOK_URL not set; skipping.")
-        return
+    url = os.environ.get(
+        "ALERT_WEBHOOK_URL",
+        "https://ai-experiementation.app.n8n.cloud/webhook/investora-alerts",
+    )
 
     payload: Dict[str, Any] = {
         "run_id": run_id,

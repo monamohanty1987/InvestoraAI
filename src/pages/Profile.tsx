@@ -27,6 +27,10 @@ import {
   type Position,
 } from "@/lib/auth";
 
+const N8N_BASE =
+  (import.meta.env.VITE_N8N_BASE_URL as string | undefined) ??
+  "https://ai-experiementation.app.n8n.cloud/webhook";
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const INTEREST_LABELS: Record<string, string> = {
@@ -88,6 +92,7 @@ export default function Profile() {
 
   // ── Existing form state ────────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(p?.displayName ?? "");
+  const [email, setEmail] = useState(p?.email ?? "");
   const [riskPct, setRiskPct] = useState(
     p?.riskTolerancePercent ?? pctFromRisk(p?.riskTolerance ?? "medium")
   );
@@ -115,6 +120,7 @@ export default function Profile() {
   const [newTicker, setNewTicker] = useState("");
   const [newTickerName, setNewTickerName] = useState("");
   const [newShares, setNewShares] = useState("");
+  const [demoSending, setDemoSending] = useState<"telegram" | "weekly" | null>(null);
 
   // ── Toggle helpers ─────────────────────────────────────────────────────
   const toggleInterest = (opt: string) => {
@@ -157,6 +163,135 @@ export default function Profile() {
     setPositions((prev) => prev.filter((pos) => pos.ticker !== ticker));
   };
 
+  // ── Demo-only manual n8n triggers (to be removed later) ─────────────────
+  const triggerDemoTelegramAlert = async () => {
+    setDemoSending("telegram");
+    try {
+      const runDate = new Date().toISOString().slice(0, 10);
+      const payload = {
+        user_id: user.id,
+        telegram_chat_id: telegramChatId.trim(),
+        run_id: `demo-${Date.now()}`,
+        run_date: runDate,
+        alert_count: 1,
+        alerts: [
+          {
+            id: `demo-alert-${Date.now()}`,
+            ticker: "AAPL",
+            signal_type: "momentum",
+            direction: "up",
+            severity: "medium",
+            urgency: "High",
+            action_frame: "Review",
+            confidence: 0.72,
+            score: 7.2,
+            narrative: "Demo Telegram alert triggered from Profile page.",
+          },
+        ],
+      };
+      const res = await fetch(`${N8N_BASE}/investora-alerts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast({
+        title: "Demo Telegram Triggered",
+        description: "Sent sample signal alert payload to n8n.",
+      });
+    } catch {
+      toast({
+        title: "Demo Trigger Failed",
+        description: "Could not send demo Telegram payload to n8n.",
+        variant: "destructive",
+      });
+    } finally {
+      setDemoSending(null);
+    }
+  };
+
+  const triggerDemoWeeklyEmail = async () => {
+    setDemoSending("weekly");
+    try {
+      const now = new Date();
+      const runDate = now.toISOString().slice(0, 10);
+      const weekStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+      const payload = {
+        user_id: user.id,
+        email: email.trim(),
+        telegram_chat_id: telegramChatId.trim(),
+        run_id: `demo-${Date.now()}`,
+        run_date: runDate,
+        week_start: weekStart,
+        week_end: runDate,
+        weekly_stats: {
+          total_signals: 9,
+          high_priority_signals: 3,
+        },
+        portfolio_pulse: {
+          market_regime: "Neutral",
+          risk_alignment: "Aligned",
+        },
+        top_weekly_signals: [
+          {
+            id: `demo-candidate-${Date.now()}`,
+            ticker: "MSFT",
+            signal_type: "quality",
+            direction: "up",
+            severity: "medium",
+            confidence: 0.76,
+            narrative: "Quality resilience remains above peer group median.",
+          },
+        ],
+        top_conviction: [
+          {
+            ticker: "MSFT",
+            confidence: 0.76,
+            narrative: "Cloud and margin trend support medium-term conviction.",
+          },
+        ],
+        watchlist_attention: [
+          {
+            ticker: "TSLA",
+            urgency: "High",
+            action_frame: "Trim Risk",
+          },
+        ],
+        discovery: [
+          {
+            ticker: "NEE",
+            confidence: 0.63,
+            profile_fit_score: 0.58,
+          },
+        ],
+        next_actions: [
+          "Review high-urgency watchlist names first.",
+          "Re-check risk alignment before adding discovery signals.",
+        ],
+      };
+      const res = await fetch(`${N8N_BASE}/investora-candidates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast({
+        title: "Demo Weekly Email Triggered",
+        description: "Sent sample weekly candidate payload to n8n.",
+      });
+    } catch {
+      toast({
+        title: "Demo Trigger Failed",
+        description: "Could not send demo weekly email payload to n8n.",
+        variant: "destructive",
+      });
+    } finally {
+      setDemoSending(null);
+    }
+  };
+
   // ── Save ───────────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
@@ -170,7 +305,9 @@ export default function Profile() {
         baseCurrency: baseCurrency as "USD" | "EUR" | "GBP",
         telegramChatId: telegramChatId.trim(),
         dailyEmailDigest,
+        weeklyEmailDigest: dailyEmailDigest,
         alertNotifications,
+        email: email.trim(),
         // v3 fields
         horizon,
         constraints,
@@ -246,6 +383,15 @@ export default function Profile() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="How you want to be addressed"
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Email</Label>
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
                 className="font-mono"
               />
             </div>
@@ -572,10 +718,31 @@ export default function Profile() {
           >
             Sign Out
           </Button>
-          <Button onClick={handleSave} disabled={saving} className="gap-2">
-            <Save className="h-4 w-4" />
-            {saving ? "Saving…" : "Save Settings"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={triggerDemoTelegramAlert}
+              disabled={demoSending !== null}
+              className="rounded px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground/75 hover:text-foreground hover:bg-muted/40 transition-colors disabled:opacity-40"
+              title="Demo only: trigger n8n Telegram signal alert"
+            >
+              {demoSending === "telegram" ? "Sending…" : "demo: telegram signal"}
+            </button>
+            <span className="text-muted-foreground/30 text-[10px]">|</span>
+            <button
+              type="button"
+              onClick={triggerDemoWeeklyEmail}
+              disabled={demoSending !== null}
+              className="rounded px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground/75 hover:text-foreground hover:bg-muted/40 transition-colors disabled:opacity-40"
+              title="Demo only: trigger n8n weekly candidates email"
+            >
+              {demoSending === "weekly" ? "Sending…" : "demo: weekly email"}
+            </button>
+            <Button onClick={handleSave} disabled={saving} className="gap-2">
+              <Save className="h-4 w-4" />
+              {saving ? "Saving…" : "Save Settings"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

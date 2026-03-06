@@ -35,7 +35,7 @@
       "typeVersion": 2,
       "position": [680, 300],
       "parameters": {
-        "jsCode": "const alert = $input.item.json.alert;\nconst runDate = $input.item.json.body?.run_date || '';\n\nconst directionEmoji = {\n  up: '🟢',\n  down: '🔴',\n  neutral: '🟡'\n}[alert.direction] || '⚪';\n\nconst directionLabel = {\n  up: '↑ UP',\n  down: '↓ DOWN',\n  neutral: '→ NEUTRAL'\n}[alert.direction] || alert.direction;\n\nconst signalLabel = {\n  quality: 'Quality',\n  momentum: 'Momentum',\n  news_catalyst: 'News Catalyst',\n  risk_flag: '⚠️ Data Risk'\n}[alert.signal_type] || alert.signal_type;\n\nconst scoreStr = alert.score != null ? `Score: ${alert.score.toFixed(1)}` : '';\nconst narrativeStr = alert.narrative ? `\\n\\n${alert.narrative}` : '';\n\nconst tag = `#${alert.ticker} #${alert.signal_type.replace('_', '')} #alert`;\n\nconst message = [\n  `${directionEmoji} *${alert.ticker}* — ${signalLabel} Signal`,\n  `📊 ${scoreStr} | Severity: ${alert.severity.toUpperCase()} | Direction: ${directionLabel}`,\n  `📅 ${runDate}`,\n  narrativeStr,\n  '',\n  tag\n].filter(l => l !== undefined).join('\\n');\n\nreturn [{ json: { message } }];"
+        "jsCode": "const body = $input.item.json.body || {};\nconst alert = $input.item.json.alert || {};\nconst chatId = body.telegram_chat_id || '';\nconst runDate = body.run_date || '';\n\nif (!chatId) {\n  return [];\n}\n\nconst dirEmoji = { up: '🟢', down: '🔴', neutral: '🟡' }[alert.direction] || '⚪';\nconst signalLabel = {\n  quality: 'Quality',\n  momentum: 'Momentum',\n  news_catalyst: 'News Catalyst',\n  risk_flag: 'Data Risk'\n}[alert.signal_type] || alert.signal_type;\n\nconst urgency = (alert.urgency || alert.severity || '').toString().toUpperCase();\nconst action = alert.action_frame ? `\\nAction: ${alert.action_frame}` : '';\nconst narrative = alert.narrative ? `\\n${alert.narrative}` : '';\n\nconst message = `${dirEmoji} *${alert.ticker || ''}* — ${signalLabel}\\nUrgency: ${urgency}\\nRun: ${runDate}${action}${narrative}`;\n\nreturn [{ json: { message, chat_id: chatId } }];"
       }
     },
     {
@@ -45,7 +45,7 @@
       "typeVersion": 1.2,
       "position": [900, 300],
       "parameters": {
-        "chatId": "={{ $vars.TELEGRAM_CHAT_ID }}",
+        "chatId": "={{ $json.chat_id }}",
         "text": "={{ $json.message }}",
         "additionalFields": {
           "parse_mode": "Markdown",
@@ -101,6 +101,6 @@
   },
   "staticData": null,
   "meta": {
-    "description": "Receives ALERT_EVENT signals from Investora AI LangGraph backend and sends each as a formatted Telegram message. Set TELEGRAM_CHAT_ID in n8n Variables and configure the Telegram Bot credential before activating."
+    "description": "Receives immediate user-specific alert signals from Investora AI and sends each to the payload-provided Telegram chat id."
   }
 }

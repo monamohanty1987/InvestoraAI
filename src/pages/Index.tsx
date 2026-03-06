@@ -4,7 +4,6 @@ import { RefreshCw, History } from "lucide-react";
 import { toast } from "sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { MarketStatusBar } from "@/components/MarketStatusBar";
-import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { StrategyBreakdown } from "@/components/dashboard/StrategyBreakdown";
 import { PortfolioPulse } from "@/components/dashboard/PortfolioPulse";
 import { ConvictionIdeas } from "@/components/dashboard/ConvictionIdeas";
@@ -154,9 +153,6 @@ const Index = () => {
           <StrategyBreakdown breakdown={strategyBreakdown} />
         </ErrorBoundary>
 
-        <ErrorBoundary fallback={<SectionFallback name="Alerts Center" />}>
-          <AlertsPanel />
-        </ErrorBoundary>
       </div>
 
       <footer className="mt-4 border-t border-border/50 pb-16">

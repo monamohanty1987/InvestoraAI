@@ -16,10 +16,12 @@ export interface UserProfile {
   telegramChatId: string;
   // ── New v2 fields (optional for backward-compat with old sessions) ──
   displayName?: string;
+  email?: string;
   riskTolerancePercent?: number;   // 0-100 slider value
   defaultMarket?: "US" | "EU";
   baseCurrency?: "USD" | "EUR" | "GBP";
   dailyEmailDigest?: boolean;
+  weeklyEmailDigest?: boolean;
   alertNotifications?: boolean;
   // ── New v3 fields ─────────────────────────────────────────
   horizon?: "short" | "medium" | "long";   // investment time horizon

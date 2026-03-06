@@ -12,41 +12,43 @@ logger = logging.getLogger(__name__)
 
 
 def post_candidates_to_n8n(
-    candidate_signals: List[Dict[str, Any]],
+    weekly_digest: Dict[str, Any],
     run_id: str,
     run_date: str,
     timeout: int = 15,
 ) -> None:
-    """POST WEEKLY_CANDIDATE signals to the n8n candidates webhook.
-
-    Soft-fails when CANDIDATE_WEBHOOK_URL is not configured.
-    """
-    url = os.environ.get("CANDIDATE_WEBHOOK_URL", "")
-    if not url:
-        logger.info("post_candidates_to_n8n: CANDIDATE_WEBHOOK_URL not set; skipping.")
-        return
+    """POST a user-specific weekly digest payload to the n8n candidates webhook."""
+    url = os.environ.get(
+        "CANDIDATE_WEBHOOK_URL",
+        "https://ai-experiementation.app.n8n.cloud/webhook/investora-candidates",
+    )
 
     payload: Dict[str, Any] = {
+        "user_id": weekly_digest.get("user_id", ""),
+        "email": weekly_digest.get("email", ""),
+        "telegram_chat_id": weekly_digest.get("telegram_chat_id", ""),
         "run_id": run_id,
         "run_date": run_date,
-        "candidate_count": len(candidate_signals),
-        "candidates": [
-            {
-                "ticker": ev["ticker"],
-                "signal_type": ev["signal_type"],
-                "direction": ev["direction"],
-                "severity": ev["severity"],
-                "score": ev["score"],
-                "narrative": ev.get("narrative"),
-            }
-            for ev in candidate_signals
-        ],
+        "week_start": weekly_digest.get("week_start", ""),
+        "week_end": weekly_digest.get("week_end", ""),
+        "generated_at": weekly_digest.get("generated_at", ""),
+        "weekly_stats": weekly_digest.get("weekly_stats", {}),
+        "portfolio_pulse": weekly_digest.get("portfolio_pulse", {}),
+        "top_weekly_signals": weekly_digest.get("top_weekly_signals", []),
+        "top_conviction": weekly_digest.get("top_conviction", []),
+        "watchlist_attention": weekly_digest.get("watchlist_attention", []),
+        "discovery": weekly_digest.get("discovery", []),
+        "next_actions": weekly_digest.get("next_actions", []),
     }
 
     response = requests.post(url, json=payload, timeout=timeout)
     logger.info(
         "post_candidates_to_n8n",
-        extra={"status_code": response.status_code, "candidate_count": len(candidate_signals)},
+        extra={
+            "status_code": response.status_code,
+            "user_id": weekly_digest.get("user_id", ""),
+            "top_weekly_signals": len(weekly_digest.get("top_weekly_signals", [])),
+        },
     )
     if response.status_code >= 400:
         raise RuntimeError(f"Candidate webhook failed {response.status_code}: {response.text[:200]}")

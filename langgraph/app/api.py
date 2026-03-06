@@ -206,9 +206,11 @@ def get_ticker_history(ticker: str, weeks: int = 6):
 
 @app.get("/market/status")
 def get_market_status():
-    """Return NYSE open/closed status based on current ET time."""
+    """Return NYSE open/closed status (ET logic) and display timestamp in CET/CEST."""
     et = ZoneInfo("America/New_York")
     now_et = datetime.now(et)
+    cet = ZoneInfo("Europe/Berlin")
+    now_cet = datetime.now(cet)
     weekday = now_et.weekday()  # 0=Mon … 6=Sun
     hour, minute = now_et.hour, now_et.minute
     is_open = (
@@ -218,7 +220,7 @@ def get_market_status():
     )
     return {
         "status": "OPEN" if is_open else "CLOSED",
-        "last_update": now_et.strftime("%H:%M ET"),
+        "last_update": now_cet.strftime("%H:%M %Z"),
     }
 
 

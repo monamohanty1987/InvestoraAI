@@ -21,21 +21,14 @@ const mockAlerts: Alert[] = [
 ];
 
 const typeConfig = {
-  opportunity: { icon: TrendingUp, color: "text-positive", bg: "bg-positive/10", border: "border-positive/20", label: "🟢 OPPORTUNITY" },
-  risk: { icon: TrendingDown, color: "text-negative", bg: "bg-negative/10", border: "border-negative/20", label: "🔴 RISK" },
-  warning: { icon: AlertTriangle, color: "text-warning", bg: "bg-warning/10", border: "border-warning/20", label: "⚠️ WATCH" },
+  opportunity: { icon: TrendingUp, color: "text-positive", bg: "bg-positive/10", border: "border-positive/20" },
+  risk: { icon: TrendingDown, color: "text-negative", bg: "bg-negative/10", border: "border-negative/20" },
+  warning: { icon: AlertTriangle, color: "text-warning", bg: "bg-warning/10", border: "border-warning/20" },
 };
 
 export function AlertsPanel() {
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-4 mb-4">
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="text-positive">● {mockAlerts.filter(a => a.type === "opportunity").length} Opportunities</span>
-          <span className="text-negative">● {mockAlerts.filter(a => a.type === "risk").length} Risks</span>
-          <span className="text-warning">● {mockAlerts.filter(a => a.type === "warning").length} Warnings</span>
-        </div>
-      </div>
       {mockAlerts.map((alert, i) => {
         const config = typeConfig[alert.type];
         const Icon = config.icon;
@@ -54,7 +47,6 @@ export function AlertsPanel() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[10px] font-mono font-bold ${config.color}`}>{config.label}</span>
                     <span className="text-[10px] font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded">{alert.ticker}</span>
                   </div>
                   <p className="text-sm text-foreground">{alert.title}</p>

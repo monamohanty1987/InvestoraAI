@@ -29,7 +29,7 @@
       "position": [460, 300],
       "parameters": {
         "method": "POST",
-        "url": "={{ $vars.INVESTORA_API_URL }}/run-weekly",
+        "url": "https://investoraai.onrender.com/run-weekly",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -139,6 +139,6 @@
   },
   "staticData": null,
   "meta": {
-    "description": "Triggers a full Investora AI weekly run every Monday at 06:00 UTC, then sends a Telegram success or failure notification. Set INVESTORA_API_URL, CRON_SECRET, and TELEGRAM_CHAT_ID in n8n Variables. Configure the Telegram Bot credential before activating."
+    "description": "Triggers a full Investora AI weekly run every Monday at 06:00 UTC, then sends a Telegram success or failure notification."
   }
 }

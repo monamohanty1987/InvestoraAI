@@ -227,6 +227,11 @@ class UserProfileContext(TypedDict):
     preferred_assets: List[str]         # e.g. ["stocks", "ETFs"]
     watchlist: List[str]                # synced from user_watchlists table
     positions: List[Dict[str, Any]]     # [{ticker, shares}] — manually entered
+    telegram_chat_id: str               # delivery target for immediate Telegram alerts
+    email: str                          # delivery target for weekly email digest
+    alert_notifications: bool           # whether immediate Telegram alerts are enabled
+    weekly_email_digest: bool           # whether weekly digest email is enabled
+    daily_email_digest: bool            # backward-compatible legacy toggle
 
 
 class PersonalizedSignal(TypedDict):

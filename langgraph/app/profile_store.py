@@ -70,6 +70,11 @@ def _json_to_context(
         preferred_assets=data.get("preferredAssets") or [],
         watchlist=watchlist,
         positions=data.get("positions") or [],
+        telegram_chat_id=str(data.get("telegramChatId") or ""),
+        email=str(data.get("email") or ""),
+        alert_notifications=bool(data.get("alertNotifications", True)),
+        weekly_email_digest=bool(data.get("weeklyEmailDigest", data.get("dailyEmailDigest", False))),
+        daily_email_digest=bool(data.get("dailyEmailDigest", False)),
     )
 
 

@@ -34,6 +34,7 @@ from .profile_store import load_all_profiles
 from .reporting import DEFAULT_COMPANIES, build_markdown, build_report, persist_report
 from .scoring import compute_all_scores, momentum_weekly_return
 from .state import GraphState, today_iso
+from .weekly_digest import build_weekly_user_digest
 
 logger = logging.getLogger(__name__)
 
@@ -1003,13 +1004,47 @@ def post_alerts_node(state: GraphState) -> GraphState:
     if skip_post:
         return state
 
-    alerts = [ev for ev in state["signal_events"] if ev["route"] == "ALERT_EVENT"]
-    if alerts:
+    # Immediate Telegram alerts are now user-specific and sent only for important signals.
+    profiles_by_user = {str(p.get("user_id", "")): p for p in state.get("user_profiles", [])}
+    bundles = state.get("personalized_bundles", {}) or {}
+    for user_id, bundle in bundles.items():
+        profile = profiles_by_user.get(user_id, {})
+        if not profile:
+            continue
+        if not bool(profile.get("alert_notifications", True)):
+            continue
+        chat_id = str(profile.get("telegram_chat_id", "")).strip()
+        if not chat_id:
+            continue
+
+        all_signals = list(bundle.get("watchlist_signals", [])) + list(bundle.get("discovery_signals", []))
+        important = [s for s in all_signals if str(s.get("urgency", "")).lower() == "high"]
+        # Dedupe by signal id to avoid double sends between buckets.
+        seen: set[str] = set()
+        deduped: List[Dict[str, Any]] = []
+        for s in important:
+            sid = str(s.get("signal_id", ""))
+            if sid and sid in seen:
+                continue
+            if sid:
+                seen.add(sid)
+            deduped.append(s)
+        if not deduped:
+            continue
         try:
-            post_alerts_to_n8n(alerts, run_id=state["run_id"], run_date=state["run_date"])
-            logger.info("post_alerts_node", extra={"run_id": state["run_id"], "alert_count": len(alerts)})
+            post_alerts_to_n8n(
+                deduped,
+                run_id=state["run_id"],
+                run_date=state["run_date"],
+                user_id=user_id,
+                telegram_chat_id=chat_id,
+            )
+            logger.info(
+                "post_alerts_node",
+                extra={"run_id": state["run_id"], "user_id": user_id, "alert_count": len(deduped)},
+            )
         except Exception as exc:  # noqa: BLE001
-            state["errors"].append({"ticker": "*", "tool": "alert_webhook", "error": str(exc)})
+            state["errors"].append({"ticker": user_id, "tool": "alert_webhook", "error": str(exc)})
 
     user_alerts = state.get("triggered_user_alerts", [])
     if user_alerts:
@@ -1027,15 +1062,30 @@ def post_candidates_node(state: GraphState) -> GraphState:
     if skip_post:
         return state
 
-    candidates = [ev for ev in state["signal_events"] if ev["route"] == "WEEKLY_CANDIDATE"]
-    if not candidates:
+    # Weekly digest email is sent only for full-scope runs.
+    if state.get("scope", "full") != "full":
         return state
 
-    try:
-        post_candidates_to_n8n(candidates, run_id=state["run_id"], run_date=state["run_date"])
-        logger.info("post_candidates_node", extra={"run_id": state["run_id"], "candidate_count": len(candidates)})
-    except Exception as exc:  # noqa: BLE001
-        state["errors"].append({"ticker": "*", "tool": "candidate_webhook", "error": str(exc)})
+    profiles_by_user = {str(p.get("user_id", "")): p for p in state.get("user_profiles", [])}
+    bundles = state.get("personalized_bundles", {}) or {}
+    for user_id, bundle in bundles.items():
+        profile = profiles_by_user.get(user_id, {})
+        if not profile:
+            continue
+        if not bool(profile.get("weekly_email_digest", profile.get("daily_email_digest", False))):
+            continue
+        email = str(profile.get("email", "")).strip()
+        if not email:
+            continue
+        try:
+            digest = build_weekly_user_digest(profile, bundle, lookback_days=7)
+            post_candidates_to_n8n(digest, run_id=state["run_id"], run_date=state["run_date"])
+            logger.info(
+                "post_candidates_node",
+                extra={"run_id": state["run_id"], "user_id": user_id, "email": email},
+            )
+        except Exception as exc:  # noqa: BLE001
+            state["errors"].append({"ticker": user_id, "tool": "candidate_webhook", "error": str(exc)})
     return state
 
 
