@@ -29,8 +29,8 @@ const Register = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [riskTolerance, setRiskTolerance] = useState("medium");
-  const [interests, setInterests] = useState<string[]>(["tech"]);
+  const [riskTolerance, setRiskTolerance] = useState("high");
+  const [interests, setInterests] = useState<string[]>([...INTEREST_OPTIONS]);
   const [telegramChatId, setTelegramChatId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
